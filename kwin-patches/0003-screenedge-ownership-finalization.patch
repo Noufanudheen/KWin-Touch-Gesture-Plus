@@ -1,0 +1,899 @@
+diff --git a/autotests/integration/screenedges_test.cpp b/autotests/integration/screenedges_test.cpp
+index 2163538..0321d21 100644
+--- a/autotests/integration/screenedges_test.cpp
++++ b/autotests/integration/screenedges_test.cpp
+@@ -23,7 +23,9 @@
+ #include "workspace.h"
+ 
+ #include <KConfigGroup>
++#include <KWayland/Client/seat.h>
+ #include <KWayland/Client/surface.h>
++#include <KWayland/Client/touch.h>
+ 
+ #include <QAbstractEventDispatcher>
+ #include <QAction>
+@@ -69,6 +71,10 @@ private Q_SLOTS:
+     void testTargetInvalidationFailClosed();
+     void testIncompleteGesturePreservesTouches();
+     void testCandidateTimeoutHandoff();
++    void testCommittedGestureLatchesAndRetreats();
++    void testTargetDestructionDuringPendingTimeout();
++    void testTargetDestructionDuringCandidateTimeout();
++    void testMultiTouchDuringCommittedGesture();
+     void testPushBack_data();
+     void testPushBack();
+     void testObjectEdge_data();
+@@ -102,11 +108,14 @@ void ScreenEdgesTest::initTestCase()
+ 
+ void ScreenEdgesTest::init()
+ {
++    if (auto r = workspace()->screenEdges()->gestureRecognizer()) {
++        r->touchCancel();
++    }
+     workspace()->screenEdges()->recreateEdges();
+     Workspace::self()->setActiveOutput(QPoint(640, 512));
+     KWin::input()->pointer()->warp(QPoint(640, 512));
+ 
+-    QVERIFY(Test::setupWaylandConnection());
++    QVERIFY(Test::setupWaylandConnection(Test::AdditionalWaylandInterface::Seat));
+ }
+ 
+ void ScreenEdgesTest::cleanup()
+@@ -659,6 +668,18 @@ void ScreenEdgesTest::testIncompleteGesturePreservesTouches()
+     window->move(QPoint(0, 0));
+     QCOMPARE(workspace()->activeWindow(), window);
+ 
++    QVERIFY(Test::waitForWaylandTouch());
++    std::unique_ptr<KWayland::Client::Touch> touch(Test::waylandSeat()->createTouch(Test::waylandSeat()));
++    QVERIFY(touch);
++    QVERIFY(touch->isValid());
++    QVERIFY(Test::waylandSync());
++
++    QSignalSpy sequenceStartedSpy(touch.get(), &KWayland::Client::Touch::sequenceStarted);
++    QSignalSpy pointMovedSpy(touch.get(), &KWayland::Client::Touch::pointMoved);
++    QSignalSpy pointRemovedSpy(touch.get(), &KWayland::Client::Touch::pointRemoved);
++    QSignalSpy sequenceEndedSpy(touch.get(), &KWayland::Client::Touch::sequenceEnded);
++    QSignalSpy frameEndedSpy(touch.get(), &KWayland::Client::Touch::frameEnded);
++
+     struct DownstreamFilter : public InputEventFilter
+     {
+         DownstreamFilter()
+@@ -718,7 +739,7 @@ void ScreenEdgesTest::testIncompleteGesturePreservesTouches()
+     QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
+ 
+     // Wait and verify NO system gesture action fired
+-    QTest::qWait(20);
++    QTest::qWait(50);
+     QCOMPARE(actionSpy.count(), 0);
+ 
+     // Verify downstream recipient received the complete, ordered touch sequence
+@@ -736,6 +757,22 @@ void ScreenEdgesTest::testIncompleteGesturePreservesTouches()
+     QCOMPARE(filter.upEvents.first().id, 20);
+     QVERIFY(filter.frameCount >= 2);
+ 
++    // Verify actual Wayland-client protocol delivery on client interface:
++    Test::waylandSync();
++    if (sequenceStartedSpy.isEmpty()) {
++        sequenceStartedSpy.wait(100);
++    }
++    QCOMPARE(sequenceStartedSpy.count(), 1);
++    if (pointMovedSpy.count() < 2) {
++        pointMovedSpy.wait(100);
++    }
++    QCOMPARE(pointMovedSpy.count(), 2);
++    if (sequenceEndedSpy.isEmpty()) {
++        sequenceEndedSpy.wait(100);
++    }
++    QCOMPARE(sequenceEndedSpy.count(), 1);
++    QVERIFY(frameEndedSpy.count() >= 2);
++
+     input()->uninstallInputEventFilter(&filter);
+     s->unreserveTouch(ElectricLeft, &action);
+ }
+@@ -817,6 +854,421 @@ void ScreenEdgesTest::testCandidateTimeoutHandoff()
+     s->unreserveTouch(ElectricLeft, &action);
+ }
+ 
++void ScreenEdgesTest::testCommittedGestureLatchesAndRetreats()
++{
++    // Fix 1: Latch gesture commitment
++    // Inward motion crossing 44px commits the gesture irreversibly.
++    // Retreating back below 44px must NOT cancel the gesture or restore application ownership.
++    // Release must fire the action exactly once, and the application must receive NONE of that contact's events.
++    auto s = workspace()->screenEdges();
++    auto recognizer = s->gestureRecognizer();
++
++    QAction action;
++    QSignalSpy actionSpy(&action, &QAction::triggered);
++    s->reserveTouch(ElectricLeft, &action);
++
++    std::unique_ptr<KWayland::Client::Surface> surface = Test::createSurface();
++    QVERIFY(surface);
++    std::unique_ptr<Test::XdgToplevel> shellSurface = Test::createXdgToplevelSurface(surface.get());
++    QVERIFY(shellSurface);
++    auto window = Test::renderAndWaitForShown(surface.get(), QSize(300, 300), Qt::blue);
++    QVERIFY(window);
++    window->move(QPoint(0, 0));
++
++    struct DownstreamFilter : public InputEventFilter
++    {
++        DownstreamFilter()
++            : InputEventFilter(InputFilterOrder::Forward)
++        {
++        }
++        bool touchDown(TouchDownEvent *event) override
++        {
++            downEvents.append(*event);
++            return false;
++        }
++        bool touchMotion(TouchMotionEvent *event) override
++        {
++            motionEvents.append(*event);
++            return false;
++        }
++        bool touchUp(TouchUpEvent *event) override
++        {
++            upEvents.append(*event);
++            return false;
++        }
++        QList<TouchDownEvent> downEvents;
++        QList<TouchMotionEvent> motionEvents;
++        QList<TouchUpEvent> upEvents;
++    };
++
++    DownstreamFilter filter;
++    input()->installInputEventFilter(&filter);
++
++    quint32 timestamp = 2000;
++    // Step 1: Touch down on edge
++    Test::touchDown(30, QPointF(2, 100), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++    QCOMPARE(recognizer->isGestureCommitted(), false);
++
++    // Step 2: Move inward beyond 44px (inward = 48px >= 44px) -> commits irreversibly!
++    timestamp += 20;
++    Test::touchMotion(30, QPointF(50, 100), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QCOMPARE(recognizer->isGestureCommitted(), true);
++
++    // Step 3: Retreat finger back toward edge below 44px (inward = 18px < 44px)
++    timestamp += 20;
++    Test::touchMotion(30, QPointF(20, 100), timestamp);
++    // Recognizer must REMAIN GestureOwned and committed!
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QCOMPARE(recognizer->isGestureCommitted(), true);
++
++    // Step 4: Release contact
++    timestamp += 20;
++    Test::touchUp(30, timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++    QCOMPARE(recognizer->isGestureCommitted(), false);
++
++    QTest::qWait(20);
++    // Gesture action MUST trigger exactly once!
++    QCOMPARE(actionSpy.count(), 1);
++
++    // Application receives NONE of this contact's events!
++    QCOMPARE(filter.downEvents.count(), 0);
++    QCOMPARE(filter.motionEvents.count(), 0);
++    QCOMPARE(filter.upEvents.count(), 0);
++
++    input()->uninstallInputEventFilter(&filter);
++    s->unreserveTouch(ElectricLeft, &action);
++}
++
++void ScreenEdgesTest::testTargetDestructionDuringPendingTimeout()
++{
++    // Fix 2: Quarantine dropped contacts after target invalidation during Pending timeout.
++    auto s = workspace()->screenEdges();
++    auto recognizer = s->gestureRecognizer();
++
++    QAction action;
++    s->reserveTouch(ElectricLeft, &action);
++
++    std::unique_ptr<KWayland::Client::Surface> surface = Test::createSurface();
++    QVERIFY(surface);
++    std::unique_ptr<Test::XdgToplevel> shellSurface = Test::createXdgToplevelSurface(surface.get());
++    QVERIFY(shellSurface);
++    auto window = Test::renderAndWaitForShown(surface.get(), QSize(300, 300), Qt::blue);
++    QVERIFY(window);
++    window->move(QPoint(0, 0));
++
++    struct DownstreamFilter : public InputEventFilter
++    {
++        DownstreamFilter()
++            : InputEventFilter(InputFilterOrder::Forward)
++        {
++        }
++        bool touchDown(TouchDownEvent *event) override
++        {
++            downEvents.append(*event);
++            return false;
++        }
++        bool touchMotion(TouchMotionEvent *event) override
++        {
++            motionEvents.append(*event);
++            return false;
++        }
++        bool touchUp(TouchUpEvent *event) override
++        {
++            upEvents.append(*event);
++            return false;
++        }
++        QList<TouchDownEvent> downEvents;
++        QList<TouchMotionEvent> motionEvents;
++        QList<TouchUpEvent> upEvents;
++    };
++
++    DownstreamFilter filter;
++    input()->installInputEventFilter(&filter);
++
++    quint32 timestamp = 3000;
++    Test::touchDown(40, QPointF(2, 50), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++    QCOMPARE(filter.downEvents.count(), 0);
++
++    // Destroy target window while contact is pending
++    shellSurface.reset();
++    surface.reset();
++    Test::flushWaylandConnection();
++
++    // Wait for pending timeout (50ms)
++    QTest::qWait(70);
++
++    // Target validation failed; queue dropped; contact 40 quarantined
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Quarantined);
++    QVERIFY(std::ranges::find(recognizer->quarantinedTouchIds(), 40) != recognizer->quarantinedTouchIds().end());
++    QCOMPARE(filter.downEvents.count(), 0);
++
++    // Send subsequent motion for quarantined contact: must be consumed and NOT leaked downstream
++    timestamp += 20;
++    Test::touchMotion(40, QPointF(5, 50), timestamp);
++    QCOMPARE(filter.motionEvents.count(), 0);
++
++    // Send release for quarantined contact: must be consumed and NOT leaked downstream
++    timestamp += 20;
++    Test::touchUp(40, timestamp);
++    QCOMPARE(filter.upEvents.count(), 0);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++    QVERIFY(recognizer->quarantinedTouchIds().empty());
++
++    // Verify recognizer recovers for a subsequent fresh touch on a new target
++    std::unique_ptr<KWayland::Client::Surface> surface2 = Test::createSurface();
++    QVERIFY(surface2);
++    std::unique_ptr<Test::XdgToplevel> shellSurface2 = Test::createXdgToplevelSurface(surface2.get());
++    QVERIFY(shellSurface2);
++    auto window2 = Test::renderAndWaitForShown(surface2.get(), QSize(300, 300), Qt::green);
++    QVERIFY(window2);
++    window2->move(QPoint(0, 0));
++
++    timestamp += 50;
++    Test::touchDown(41, QPointF(2, 50), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++
++    // Wait for timeout handoff to application
++    QTest::qWait(70);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::ApplicationOwned);
++    QCOMPARE(filter.downEvents.count(), 1);
++    QCOMPARE(filter.downEvents.first().id, 41);
++
++    timestamp += 20;
++    Test::touchUp(41, timestamp);
++    QCOMPARE(filter.upEvents.count(), 1);
++    QCOMPARE(filter.upEvents.first().id, 41);
++
++    input()->uninstallInputEventFilter(&filter);
++    s->unreserveTouch(ElectricLeft, &action);
++}
++
++void ScreenEdgesTest::testTargetDestructionDuringCandidateTimeout()
++{
++    // Fix 2: Quarantine dropped contacts after target invalidation during Candidate timeout.
++    auto s = workspace()->screenEdges();
++    auto recognizer = s->gestureRecognizer();
++
++    QAction action;
++    s->reserveTouch(ElectricLeft, &action);
++
++    std::unique_ptr<KWayland::Client::Surface> surface = Test::createSurface();
++    QVERIFY(surface);
++    std::unique_ptr<Test::XdgToplevel> shellSurface = Test::createXdgToplevelSurface(surface.get());
++    QVERIFY(shellSurface);
++    auto window = Test::renderAndWaitForShown(surface.get(), QSize(300, 300), Qt::blue);
++    QVERIFY(window);
++    window->move(QPoint(0, 0));
++
++    struct DownstreamFilter : public InputEventFilter
++    {
++        DownstreamFilter()
++            : InputEventFilter(InputFilterOrder::Forward)
++        {
++        }
++        bool touchDown(TouchDownEvent *event) override
++        {
++            downEvents.append(*event);
++            return false;
++        }
++        bool touchMotion(TouchMotionEvent *event) override
++        {
++            motionEvents.append(*event);
++            return false;
++        }
++        bool touchUp(TouchUpEvent *event) override
++        {
++            upEvents.append(*event);
++            return false;
++        }
++        QList<TouchDownEvent> downEvents;
++        QList<TouchMotionEvent> motionEvents;
++        QList<TouchUpEvent> upEvents;
++    };
++
++    DownstreamFilter filter;
++    input()->installInputEventFilter(&filter);
++
++    quint32 timestamp = 4000;
++    Test::touchDown(42, QPointF(2, 50), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++
++    // Move to 20px (enters GestureCandidate)
++    timestamp += 10;
++    Test::touchMotion(42, QPointF(20, 50), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureCandidate);
++    QCOMPARE(filter.downEvents.count(), 0);
++
++    // Destroy target window during Candidate state
++    shellSurface.reset();
++    surface.reset();
++    Test::flushWaylandConnection();
++
++    // Wait for candidate timeout (200ms)
++    QTest::qWait(230);
++
++    // Recognizer detects target invalidation, drops queue, enters Quarantined
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Quarantined);
++    QVERIFY(std::ranges::find(recognizer->quarantinedTouchIds(), 42) != recognizer->quarantinedTouchIds().end());
++    QCOMPARE(filter.downEvents.count(), 0);
++
++    // Send subsequent motion: must be consumed and NOT leaked
++    timestamp += 20;
++    Test::touchMotion(42, QPointF(25, 50), timestamp);
++    QCOMPARE(filter.motionEvents.count(), 0);
++
++    // Send release: must be consumed and NOT leaked
++    timestamp += 20;
++    Test::touchUp(42, timestamp);
++    QCOMPARE(filter.upEvents.count(), 0);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++    QVERIFY(recognizer->quarantinedTouchIds().empty());
++
++    // Verify recovery on fresh touch
++    std::unique_ptr<KWayland::Client::Surface> surface2 = Test::createSurface();
++    QVERIFY(surface2);
++    std::unique_ptr<Test::XdgToplevel> shellSurface2 = Test::createXdgToplevelSurface(surface2.get());
++    QVERIFY(shellSurface2);
++    auto window2 = Test::renderAndWaitForShown(surface2.get(), QSize(300, 300), Qt::green);
++    QVERIFY(window2);
++    window2->move(QPoint(0, 0));
++
++    timestamp += 50;
++    Test::touchDown(43, QPointF(2, 50), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++
++    QTest::qWait(70);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::ApplicationOwned);
++    QCOMPARE(filter.downEvents.count(), 1);
++
++    timestamp += 20;
++    Test::touchUp(43, timestamp);
++    QCOMPARE(filter.upEvents.count(), 1);
++
++    input()->uninstallInputEventFilter(&filter);
++    s->unreserveTouch(ElectricLeft, &action);
++}
++
++void ScreenEdgesTest::testMultiTouchDuringCommittedGesture()
++{
++    // Fix 3: Keep ownership consistent after multitouch during a committed gesture.
++    // 1. Begin an edge touch.
++    // 2. Commit the gesture at or beyond 44 px.
++    // 3. Add a second contact.
++    // 4. Release the primary contact.
++    // 5. Move and release the secondary contact.
++    // 6. Assert that the action fires at most once, no orphaned events reach the application,
++    //    all IDs are cleaned up, and a later independent edge swipe works.
++    auto s = workspace()->screenEdges();
++    auto recognizer = s->gestureRecognizer();
++
++    QAction action;
++    QSignalSpy actionSpy(&action, &QAction::triggered);
++    s->reserveTouch(ElectricLeft, &action);
++
++    std::unique_ptr<KWayland::Client::Surface> surface = Test::createSurface();
++    QVERIFY(surface);
++    std::unique_ptr<Test::XdgToplevel> shellSurface = Test::createXdgToplevelSurface(surface.get());
++    QVERIFY(shellSurface);
++    auto window = Test::renderAndWaitForShown(surface.get(), QSize(300, 300), Qt::blue);
++    QVERIFY(window);
++    window->move(QPoint(0, 0));
++
++    struct DownstreamFilter : public InputEventFilter
++    {
++        DownstreamFilter()
++            : InputEventFilter(InputFilterOrder::Forward)
++        {
++        }
++        bool touchDown(TouchDownEvent *event) override
++        {
++            downEvents.append(*event);
++            return false;
++        }
++        bool touchMotion(TouchMotionEvent *event) override
++        {
++            motionEvents.append(*event);
++            return false;
++        }
++        bool touchUp(TouchUpEvent *event) override
++        {
++            upEvents.append(*event);
++            return false;
++        }
++        QList<TouchDownEvent> downEvents;
++        QList<TouchMotionEvent> motionEvents;
++        QList<TouchUpEvent> upEvents;
++    };
++
++    DownstreamFilter filter;
++    input()->installInputEventFilter(&filter);
++
++    quint32 timestamp = 5000;
++    // 1. Begin an edge touch
++    Test::touchDown(50, QPointF(2, 100), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++
++    // 2. Commit gesture at or beyond 44px
++    timestamp += 20;
++    Test::touchMotion(50, QPointF(50, 100), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QCOMPARE(recognizer->isGestureCommitted(), true);
++
++    // 3. Add a second contact
++    timestamp += 10;
++    Test::touchDown(51, QPointF(200, 200), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QVERIFY(std::ranges::find(recognizer->consumedTouchIds(), 51) != recognizer->consumedTouchIds().end());
++
++    // 4. Release the primary contact
++    timestamp += 20;
++    Test::touchUp(50, timestamp);
++    QTest::qWait(20);
++    // Primary contact release triggers the committed action!
++    QCOMPARE(actionSpy.count(), 1);
++    // Recognizer must NOT reset to Idle because contact 51 remains consumed!
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QVERIFY(std::ranges::find(recognizer->consumedTouchIds(), 51) != recognizer->consumedTouchIds().end());
++
++    // 5. Move and release the secondary contact
++    timestamp += 20;
++    Test::touchMotion(51, QPointF(210, 210), timestamp);
++    QCOMPARE(filter.motionEvents.count(), 0); // Consumed, not leaked to application!
++
++    timestamp += 20;
++    Test::touchUp(51, timestamp);
++    QCOMPARE(filter.upEvents.count(), 0); // Consumed, not leaked to application!
++
++    // Action must fire at most once (count remains 1)
++    QCOMPARE(actionSpy.count(), 1);
++
++    // All IDs cleaned up and recognizer returned to Idle
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++    QVERIFY(recognizer->consumedTouchIds().empty());
++
++    // 6. Assert later independent edge swipe works cleanly
++    timestamp += 50;
++    Test::touchDown(52, QPointF(2, 100), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++
++    timestamp += 20;
++    Test::touchMotion(52, QPointF(55, 100), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QCOMPARE(recognizer->isGestureCommitted(), true);
++
++    timestamp += 20;
++    Test::touchUp(52, timestamp);
++    QTest::qWait(20);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++    QCOMPARE(actionSpy.count(), 2);
++
++    input()->uninstallInputEventFilter(&filter);
++    s->unreserveTouch(ElectricLeft, &action);
++}
++
+ void ScreenEdgesTest::testPushBack_data()
+ {
+     QTest::addColumn<KWin::ElectricBorder>("border");
+diff --git a/src/screenedgegestures.cpp b/src/screenedgegestures.cpp
+index f05e1dc..d63ac65 100644
+--- a/src/screenedgegestures.cpp
++++ b/src/screenedgegestures.cpp
+@@ -86,7 +86,10 @@ void ScreenEdgeGestureRecognizer::removeGesture(ScreenEdgeGesture *gesture)
+             flushPendingToApplication();
+         } else if (m_state == EdgeTouchState::GestureOwned) {
+             Q_EMIT gesture->cancelled();
+-            m_state = EdgeTouchState::Idle;
++            if (m_consumedTouchIds.empty() && m_touchPoints.empty()) {
++                m_state = EdgeTouchState::Idle;
++                m_gestureCommitted = false;
++            }
+         }
+         m_currentGesture = nullptr;
+     }
+@@ -194,10 +197,23 @@ void ScreenEdgeGestureRecognizer::replayPendingQueue()
+     if (!validateTarget()) {
+         qCWarning(KWIN_CORE) << "ScreenEdgeGestureRecognizer: Target window invalidated during Pending window; dropping"
+                              << m_pendingQueue.size() << "buffered events";
++        if (m_touchId.has_value() && std::ranges::find(m_touchPoints, *m_touchId) != m_touchPoints.end()) {
++            if (std::ranges::find(m_quarantinedTouchIds, *m_touchId) == m_quarantinedTouchIds.end()) {
++                m_quarantinedTouchIds.push_back(*m_touchId);
++            }
++        }
+         m_pendingQueue.clear();
+-        m_state = EdgeTouchState::Idle;
++        m_initialTargetWindow = nullptr;
++        m_initialTargetDecoration = nullptr;
++        m_initialHadWindow = false;
+         m_currentGesture = nullptr;
++        if (!m_quarantinedTouchIds.empty()) {
++            m_state = EdgeTouchState::Quarantined;
++        } else {
++            m_state = EdgeTouchState::Idle;
++        }
+         m_touchId.reset();
++        m_consumedTouchIds.clear();
+         return;
+     }
+ 
+@@ -266,9 +282,33 @@ void ScreenEdgeGestureRecognizer::flushPendingToApplication()
+         return;
+     }
+     m_pendingTimer->stop();
+-    m_state = EdgeTouchState::ApplicationOwned;
+     m_currentGesture = nullptr;
+ 
++    if (!validateTarget()) {
++        qCWarning(KWIN_CORE) << "ScreenEdgeGestureRecognizer: Target window invalidated during Pending window; dropping"
++                             << m_pendingQueue.size() << "buffered events";
++        if (m_touchId.has_value() && std::ranges::find(m_touchPoints, *m_touchId) != m_touchPoints.end()) {
++            if (std::ranges::find(m_quarantinedTouchIds, *m_touchId) == m_quarantinedTouchIds.end()) {
++                m_quarantinedTouchIds.push_back(*m_touchId);
++            }
++        }
++        m_pendingQueue.clear();
++        m_initialTargetWindow = nullptr;
++        m_initialTargetDecoration = nullptr;
++        m_initialHadWindow = false;
++        if (!m_quarantinedTouchIds.empty()) {
++            m_state = EdgeTouchState::Quarantined;
++        } else {
++            m_state = EdgeTouchState::Idle;
++        }
++        m_touchId.reset();
++        m_consumedTouchIds.clear();
++        return;
++    }
++
++    m_state = EdgeTouchState::ApplicationOwned;
++    m_consumedTouchIds.clear();
++
+     replayPendingQueue();
+ }
+ 
+@@ -280,6 +320,13 @@ bool ScreenEdgeGestureRecognizer::touchDown(uint32_t id, const QPointF &pos, std
+         return false;
+     }
+ 
++    if (m_state == EdgeTouchState::Quarantined) {
++        // Quarantined contacts are tracked in m_quarantinedTouchIds.
++        // A new independent contact touching down while previous contact is quarantined
++        // should be routed normally downstream to application.
++        return false;
++    }
++
+     if (m_state == EdgeTouchState::Pending || m_state == EdgeTouchState::GestureCandidate) {
+         // Multi-touch contact detected while first touch was pending or gesture candidate.
+         // If candidate, cancel preliminary gesture before flushing.
+@@ -293,6 +340,8 @@ bool ScreenEdgeGestureRecognizer::touchDown(uint32_t id, const QPointF &pos, std
+     }
+ 
+     if (m_state == EdgeTouchState::GestureOwned) {
++        // Multi-touch contact during GestureOwned: consume this contact as part of the gesture sequence
++        m_consumedTouchIds.push_back(id);
+         return true;
+     }
+ 
+@@ -308,11 +357,13 @@ bool ScreenEdgeGestureRecognizer::touchDown(uint32_t id, const QPointF &pos, std
+     }
+ 
+     m_touchId = id;
++    m_consumedTouchIds.push_back(id);
+     m_currentGesture = *match;
+     m_startPosition = pos;
+     m_startTime = time;
+     m_currentDistance = 0;
+     m_skipNextFrame = false;
++    m_gestureCommitted = false;
+ 
+     if (workspace()) {
+         m_initialTargetWindow = input()->findToplevel(pos);
+@@ -347,10 +398,27 @@ bool ScreenEdgeGestureRecognizer::touchDown(uint32_t id, const QPointF &pos, std
+ 
+ bool ScreenEdgeGestureRecognizer::touchMotion(uint32_t id, const QPointF &pos, std::chrono::microseconds time)
+ {
++    // First, check quarantined contacts:
++    if (std::ranges::find(m_quarantinedTouchIds, id) != m_quarantinedTouchIds.end()) {
++        return true; // Quarantined: consumed, never forwarded
++    }
++
++    if (m_state == EdgeTouchState::Quarantined) {
++        // Independent contacts not in m_quarantinedTouchIds pass through
++        return false;
++    }
++
+     if (m_state == EdgeTouchState::ApplicationOwned) {
+         return false;
+     }
+ 
++    // If this contact was consumed as a secondary contact in GestureOwned:
++    if (m_state == EdgeTouchState::GestureOwned && m_touchId != id) {
++        if (std::ranges::find(m_consumedTouchIds, id) != m_consumedTouchIds.end()) {
++            return true; // Consumed!
++        }
++    }
++
+     if (!m_touchId || m_touchId != id || !m_currentGesture) {
+         return (m_state == EdgeTouchState::Pending || m_state == EdgeTouchState::GestureCandidate || m_state == EdgeTouchState::GestureOwned);
+     }
+@@ -358,6 +426,14 @@ bool ScreenEdgeGestureRecognizer::touchMotion(uint32_t id, const QPointF &pos, s
+     const double inward = inwardDisplacement(pos);
+     const double parallel = parallelDisplacement(pos);
+ 
++    // Irreversible commitment check at >= s_activationDistance (44px)
++    if (!m_gestureCommitted && inward >= s_activationDistance) {
++        m_gestureCommitted = true;
++        m_pendingTimer->stop();
++        m_pendingQueue.clear();
++        m_state = EdgeTouchState::GestureOwned;
++    }
++
+     if (m_state == EdgeTouchState::Pending) {
+         std::chrono::duration<double, std::milli> dt = time - m_startTime;
+         const double velocity = (dt.count() > 0) ? (inward / dt.count()) : 0.0;
+@@ -397,6 +473,7 @@ bool ScreenEdgeGestureRecognizer::touchMotion(uint32_t id, const QPointF &pos, s
+             });
+ 
+             if (m_currentDistance >= s_activationDistance) {
++                m_gestureCommitted = true;
+                 m_pendingTimer->stop();
+                 m_pendingQueue.clear();
+                 m_state = EdgeTouchState::GestureOwned;
+@@ -427,8 +504,8 @@ bool ScreenEdgeGestureRecognizer::touchMotion(uint32_t id, const QPointF &pos, s
+             .time = time,
+         });
+ 
+-        // If inward reaches or exceeds activation distance, the gesture commits irreversibly!
+         if (m_currentDistance >= s_activationDistance) {
++            m_gestureCommitted = true;
+             m_pendingTimer->stop();
+             m_pendingQueue.clear();
+             m_state = EdgeTouchState::GestureOwned;
+@@ -450,8 +527,21 @@ bool ScreenEdgeGestureRecognizer::touchUp(uint32_t id, std::chrono::microseconds
+ {
+     std::erase(m_touchPoints, id);
+ 
++    // Fix 2: Check quarantined contacts:
++    if (std::erase(m_quarantinedTouchIds, id) > 0) {
++        if (m_quarantinedTouchIds.empty() && m_touchPoints.empty()) {
++            m_state = EdgeTouchState::Idle;
++        }
++        return true;
++    }
++
++    if (m_state == EdgeTouchState::Quarantined) {
++        return false;
++    }
++
+     if (m_state == EdgeTouchState::Pending && m_touchId == id) {
+         m_pendingTimer->stop();
++        std::erase(m_consumedTouchIds, id);
+ 
+         m_pendingQueue.push_back({
+             .type = PendingEventType::Up,
+@@ -463,21 +553,27 @@ bool ScreenEdgeGestureRecognizer::touchUp(uint32_t id, std::chrono::microseconds
+         m_skipNextFrame = true;
+         replayPendingQueue();
+ 
+-        m_state = EdgeTouchState::Idle;
+-        m_currentGesture = nullptr;
+-        m_touchId.reset();
++        if (m_state != EdgeTouchState::Quarantined) {
++            m_state = EdgeTouchState::Idle;
++            m_currentGesture = nullptr;
++            m_touchId.reset();
++        }
+         return true;
+     }
+ 
+     if (m_state == EdgeTouchState::GestureCandidate && m_touchId == id) {
+         m_pendingTimer->stop();
++        std::erase(m_consumedTouchIds, id);
+ 
+-        if (m_currentDistance >= s_activationDistance) {
++        if (m_gestureCommitted || m_currentDistance >= s_activationDistance) {
+             if (m_currentGesture) {
+                 Q_EMIT m_currentGesture->triggered();
+                 m_currentGesture = nullptr;
+             }
+             m_pendingQueue.clear();
++            m_state = EdgeTouchState::Idle;
++            m_gestureCommitted = false;
++            m_touchId.reset();
+         } else {
+             if (m_currentGesture) {
+                 Q_EMIT m_currentGesture->cancelled();
+@@ -493,10 +589,13 @@ bool ScreenEdgeGestureRecognizer::touchUp(uint32_t id, std::chrono::microseconds
+ 
+             m_skipNextFrame = true;
+             replayPendingQueue();
+-        }
+ 
+-        m_state = EdgeTouchState::Idle;
+-        m_touchId.reset();
++            if (m_state != EdgeTouchState::Quarantined) {
++                m_state = EdgeTouchState::Idle;
++                m_gestureCommitted = false;
++                m_touchId.reset();
++            }
++        }
+         return true;
+     }
+ 
+@@ -504,29 +603,44 @@ bool ScreenEdgeGestureRecognizer::touchUp(uint32_t id, std::chrono::microseconds
+         if (m_touchPoints.empty()) {
+             m_state = EdgeTouchState::Idle;
+             m_touchId.reset();
++            m_consumedTouchIds.clear();
+         }
+         return false;
+     }
+ 
+-    if (!m_touchId) {
+-        return false;
+-    }
+-    if (m_touchId != id) {
+-        return true;
+-    }
+-
+     if (m_state == EdgeTouchState::GestureOwned) {
+-        if (m_currentGesture) {
+-            if (m_currentDistance >= s_activationDistance) {
+-                Q_EMIT m_currentGesture->triggered();
+-            } else {
+-                Q_EMIT m_currentGesture->cancelled();
++        const bool wasPrimary = (m_touchId && *m_touchId == id);
++        const bool wasConsumed = (std::erase(m_consumedTouchIds, id) > 0);
++
++        if (wasPrimary) {
++            if (m_currentGesture) {
++                if (m_gestureCommitted) {
++                    Q_EMIT m_currentGesture->triggered();
++                } else {
++                    Q_EMIT m_currentGesture->cancelled();
++                }
++                m_currentGesture = nullptr;
+             }
+-            m_currentGesture = nullptr;
++            m_touchId.reset();
+         }
+-        m_state = EdgeTouchState::Idle;
++
++        if (m_consumedTouchIds.empty() && m_touchPoints.empty()) {
++            m_state = EdgeTouchState::Idle;
++            m_gestureCommitted = false;
++        }
++
++        if (wasPrimary || wasConsumed) {
++            return true;
++        }
++        return false;
++    }
++
++    if (m_touchPoints.empty()) {
++        m_quarantinedTouchIds.clear();
++        m_consumedTouchIds.clear();
+         m_touchId.reset();
+-        return true;
++        m_gestureCommitted = false;
++        m_state = EdgeTouchState::Idle;
+     }
+ 
+     return false;
+@@ -535,10 +649,16 @@ bool ScreenEdgeGestureRecognizer::touchUp(uint32_t id, std::chrono::microseconds
+ void ScreenEdgeGestureRecognizer::touchCancel()
+ {
+     m_touchPoints.clear();
++    m_consumedTouchIds.clear();
++    m_quarantinedTouchIds.clear();
+     m_touchId.reset();
++    m_gestureCommitted = false;
+     m_pendingTimer->stop();
+     m_skipNextFrame = false;
+     m_pendingQueue.clear();
++    m_initialTargetWindow = nullptr;
++    m_initialTargetDecoration = nullptr;
++    m_initialHadWindow = false;
+     if ((m_state == EdgeTouchState::GestureOwned || m_state == EdgeTouchState::GestureCandidate) && m_currentGesture) {
+         Q_EMIT m_currentGesture->cancelled();
+     }
+@@ -553,6 +673,13 @@ bool ScreenEdgeGestureRecognizer::touchFrame()
+         return true;
+     }
+ 
++    if (m_state == EdgeTouchState::Quarantined) {
++        if (m_quarantinedTouchIds.size() >= m_touchPoints.size()) {
++            return true;
++        }
++        return false;
++    }
++
+     if (m_state == EdgeTouchState::Pending || m_state == EdgeTouchState::GestureCandidate) {
+         m_pendingQueue.push_back({
+             .type = PendingEventType::Frame,
+diff --git a/src/screenedgegestures.h b/src/screenedgegestures.h
+index 903116c..2ead66b 100644
+--- a/src/screenedgegestures.h
++++ b/src/screenedgegestures.h
+@@ -42,6 +42,7 @@ enum class EdgeTouchState {
+     GestureCandidate,
+     GestureOwned,
+     ApplicationOwned,
++    Quarantined,
+ };
+ 
+ enum class PendingEventType {
+@@ -124,6 +125,21 @@ public:
+         return m_state;
+     }
+ 
++    bool isGestureCommitted() const
++    {
++        return m_gestureCommitted;
++    }
++
++    const std::vector<uint32_t> &consumedTouchIds() const
++    {
++        return m_consumedTouchIds;
++    }
++
++    const std::vector<uint32_t> &quarantinedTouchIds() const
++    {
++        return m_quarantinedTouchIds;
++    }
++
+     const std::vector<PendingEvent> &pendingQueue() const
+     {
+         return m_pendingQueue;
+@@ -141,11 +157,14 @@ private:
+ 
+     std::vector<ScreenEdgeGesture *> m_gestures;
+     std::vector<uint32_t> m_touchPoints;
++    std::vector<uint32_t> m_consumedTouchIds;
++    std::vector<uint32_t> m_quarantinedTouchIds;
+     std::optional<uint32_t> m_touchId;
+     QPointF m_startPosition;
+     std::chrono::microseconds m_startTime{0};
+     double m_currentDistance = 0;
+     ScreenEdgeGesture *m_currentGesture = nullptr;
++    bool m_gestureCommitted = false;
+ 
+     EdgeTouchState m_state = EdgeTouchState::Idle;
+     std::vector<PendingEvent> m_pendingQueue;

@@ -1,0 +1,45 @@
+# Build directories
+build/
+**/build/
+bin/
+lib/
+prefix/
+pwp-build/
+
+# CMake output
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+compile_commands.json
+
+# Object and library files
+*.o
+*.so
+*.so.*
+*.a
+*.dylib
+
+# Packages and archives
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.tar.xz
+*.tar.gz
+*.zip
+*.sig
+
+# Logs and debug files
+*.log
+*.core
+core
+
+# Editor and IDE metadata
+.vscode/
+.idea/
+*.user
+*.swp
+*~
+.directory
+.DS_Store

@@ -1,0 +1,17 @@
+{
+    "KPackageStructure": "KWin/Effect",
+    "KPlugin": {
+        "Category": "Accessibility",
+        "Description": "Multi-zone touchscreen edge gestures and tablet mode auto-scaling",
+        "EnabledByDefault": true,
+        "Icon": "input-tablet",
+        "Id": "tablet_gestures",
+        "Name": "Tablet Touch & Edge Gestures"
+    },
+    "X-KDE-ConfigModule": "kwin_tablet_gestures_config",
+    "X-KDE-Ordering": 70,
+    "X-KDE-PluginKeyword": "tablet_gestures",
+    "X-KWin-Config-TranslationDomain": "kwin_effects",
+    "X-Plasma-API": "javascript",
+    "X-Plasma-MainScript": "code/main.js"
+}

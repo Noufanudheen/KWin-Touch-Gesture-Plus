@@ -1,0 +1,1079 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TabletGesturesConfig</class>
+ <widget class="QWidget" name="TabletGesturesConfig">
+  <layout class="QVBoxLayout" name="mainLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <widget class="QWidget" name="tabGestures">
+      <attribute name="title">
+       <string>Touch Gestures</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="layoutTabGestures">
+       <item>
+        <widget class="QGroupBox" name="groupSensitivity">
+         <property name="title">
+          <string>Touch Sensitivity &amp; Edge Buffer</string>
+         </property>
+         <layout class="QFormLayout" name="formSensitivity">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_EdgeMargin">
+            <property name="text">
+             <string>Edge Buffer Margin:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <layout class="QHBoxLayout" name="layoutEdgeMargin">
+            <item>
+             <widget class="QSlider" name="kcfg_EdgeMargin">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="minimum">
+               <number>10</number>
+              </property>
+              <property name="maximum">
+               <number>80</number>
+              </property>
+              <property name="value">
+               <number>25</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spin_EdgeMargin">
+              <property name="minimum">
+               <number>10</number>
+              </property>
+              <property name="maximum">
+               <number>80</number>
+              </property>
+              <property name="value">
+               <number>25</number>
+              </property>
+              <property name="suffix">
+               <string> px</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_SwipeThreshold">
+            <property name="text">
+             <string>Swipe Pull Threshold:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <layout class="QHBoxLayout" name="layoutSwipeThreshold">
+            <item>
+             <widget class="QSlider" name="kcfg_SwipeThreshold">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="minimum">
+               <number>20</number>
+              </property>
+              <property name="maximum">
+               <number>120</number>
+              </property>
+              <property name="value">
+               <number>45</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spin_SwipeThreshold">
+              <property name="minimum">
+               <number>20</number>
+              </property>
+              <property name="maximum">
+               <number>120</number>
+              </property>
+              <property name="value">
+               <number>45</number>
+              </property>
+              <property name="suffix">
+               <string> px</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupActions">
+         <property name="title">
+          <string>Screen Edge Gestures Mapping</string>
+         </property>
+         <layout class="QFormLayout" name="formActions">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_BottomLeft">
+            <property name="text">
+             <string>Bottom Left Zone:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="kcfg_BottomLeftAction">
+            <property name="editable">
+             <bool>false</bool>
+            </property>
+            <property name="insertPolicy">
+             <enum>QComboBox::InsertAtBottom</enum>
+            </property>
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item><property name="text"><string>Application Launcher</string></property></item>
+            <item><property name="text"><string>System Tray Popup Menu</string></property></item>
+            <item><property name="text"><string>Toggle Taskbar / Dock</string></property></item>
+            <item><property name="text"><string>Notifications Panel</string></property></item>
+            <item><property name="text"><string>Activities / Task Switcher</string></property></item>
+            <item><property name="text"><string>Toggle Fullscreen / Expose</string></property></item>
+            <item><property name="text"><string>Overview</string></property></item>
+            <item><property name="text"><string>Show Desktop</string></property></item>
+            <item><property name="text"><string>Toggle Virtual Keyboard</string></property></item>
+            <item><property name="text"><string>None (Disabled)</string></property></item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_BottomCenter">
+            <property name="text">
+             <string>Bottom Center Zone:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="kcfg_BottomCenterAction">
+            <property name="editable">
+             <bool>false</bool>
+            </property>
+            <property name="insertPolicy">
+             <enum>QComboBox::InsertAtBottom</enum>
+            </property>
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item><property name="text"><string>Toggle Taskbar / Dock</string></property></item>
+            <item><property name="text"><string>Application Launcher</string></property></item>
+            <item><property name="text"><string>System Tray Popup Menu</string></property></item>
+            <item><property name="text"><string>Notifications Panel</string></property></item>
+            <item><property name="text"><string>Activities / Task Switcher</string></property></item>
+            <item><property name="text"><string>Toggle Fullscreen / Expose</string></property></item>
+            <item><property name="text"><string>Overview</string></property></item>
+            <item><property name="text"><string>Show Desktop</string></property></item>
+            <item><property name="text"><string>Toggle Virtual Keyboard</string></property></item>
+            <item><property name="text"><string>None (Disabled)</string></property></item>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_BottomRight">
+            <property name="text">
+             <string>Bottom Right Zone:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QComboBox" name="kcfg_BottomRightAction">
+            <property name="editable">
+             <bool>false</bool>
+            </property>
+            <property name="insertPolicy">
+             <enum>QComboBox::InsertAtBottom</enum>
+            </property>
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item><property name="text"><string>System Tray Popup Menu</string></property></item>
+            <item><property name="text"><string>Notifications Panel</string></property></item>
+            <item><property name="text"><string>Toggle Taskbar / Dock</string></property></item>
+            <item><property name="text"><string>Application Launcher</string></property></item>
+            <item><property name="text"><string>Activities / Task Switcher</string></property></item>
+            <item><property name="text"><string>Toggle Fullscreen / Expose</string></property></item>
+            <item><property name="text"><string>Overview</string></property></item>
+            <item><property name="text"><string>Show Desktop</string></property></item>
+            <item><property name="text"><string>Toggle Virtual Keyboard</string></property></item>
+            <item><property name="text"><string>None (Disabled)</string></property></item>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_Top">
+            <property name="text">
+             <string>Top Edge Swipe Down:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="kcfg_TopAction">
+            <property name="editable">
+             <bool>false</bool>
+            </property>
+            <property name="insertPolicy">
+             <enum>QComboBox::InsertAtBottom</enum>
+            </property>
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item><property name="text"><string>Toggle Fullscreen / Expose</string></property></item>
+            <item><property name="text"><string>Overview</string></property></item>
+            <item><property name="text"><string>Show Desktop</string></property></item>
+            <item><property name="text"><string>Application Launcher</string></property></item>
+            <item><property name="text"><string>System Tray Popup Menu</string></property></item>
+            <item><property name="text"><string>Toggle Taskbar / Dock</string></property></item>
+            <item><property name="text"><string>Notifications Panel</string></property></item>
+            <item><property name="text"><string>Activities / Task Switcher</string></property></item>
+            <item><property name="text"><string>Toggle Virtual Keyboard</string></property></item>
+            <item><property name="text"><string>None (Disabled)</string></property></item>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="label_Right">
+            <property name="text">
+             <string>Right Edge Swipe Inward:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QComboBox" name="kcfg_RightAction">
+            <property name="editable">
+             <bool>false</bool>
+            </property>
+            <property name="insertPolicy">
+             <enum>QComboBox::InsertAtBottom</enum>
+            </property>
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item><property name="text"><string>Notifications Panel</string></property></item>
+            <item><property name="text"><string>System Tray Popup Menu</string></property></item>
+            <item><property name="text"><string>Toggle Taskbar / Dock</string></property></item>
+            <item><property name="text"><string>Application Launcher</string></property></item>
+            <item><property name="text"><string>Activities / Task Switcher</string></property></item>
+            <item><property name="text"><string>Toggle Fullscreen / Expose</string></property></item>
+            <item><property name="text"><string>Overview</string></property></item>
+            <item><property name="text"><string>Show Desktop</string></property></item>
+            <item><property name="text"><string>Toggle Virtual Keyboard</string></property></item>
+            <item><property name="text"><string>None (Disabled)</string></property></item>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="label_Left">
+            <property name="text">
+             <string>Left Edge Swipe Inward:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QComboBox" name="kcfg_LeftAction">
+            <property name="editable">
+             <bool>false</bool>
+            </property>
+            <property name="insertPolicy">
+             <enum>QComboBox::InsertAtBottom</enum>
+            </property>
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item><property name="text"><string>Activities / Task Switcher</string></property></item>
+            <item><property name="text"><string>Application Launcher</string></property></item>
+            <item><property name="text"><string>System Tray Popup Menu</string></property></item>
+            <item><property name="text"><string>Toggle Taskbar / Dock</string></property></item>
+            <item><property name="text"><string>Notifications Panel</string></property></item>
+            <item><property name="text"><string>Toggle Fullscreen / Expose</string></property></item>
+            <item><property name="text"><string>Overview</string></property></item>
+            <item><property name="text"><string>Show Desktop</string></property></item>
+            <item><property name="text"><string>Toggle Virtual Keyboard</string></property></item>
+            <item><property name="text"><string>None (Disabled)</string></property></item>
+           </widget>
+          </item>
+</layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabCustomCommands">
+      <attribute name="title">
+       <string>Custom Command</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="layoutTabCustom">
+       <item>
+        <widget class="QGroupBox" name="groupCustomCommands">
+         <property name="title">
+          <string>Custom Commands Manager</string>
+         </property>
+         <layout class="QVBoxLayout" name="layoutGroupCustom">
+          <item>
+           <widget class="QLabel" name="label_ListHeading">
+            <property name="text">
+             <string>Configured Custom Commands:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QListWidget" name="listCustomCommands">
+            <property name="toolTip">
+             <string>Select a command to edit, or click New Command to create a new one</string>
+            </property>
+            <property name="selectionMode">
+             <enum>QAbstractItemView::SingleSelection</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelCommandStatus">
+            <property name="text">
+             <string>Select a command above or click New Command</string>
+            </property>
+            <property name="font">
+             <font>
+              <bold>true</bold>
+             </font>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QFormLayout" name="formCustomEditor">
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_CustomTitle">
+              <property name="text">
+               <string>Title (optional):</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QLineEdit" name="editCommandTitle">
+              <property name="placeholderText">
+               <string>e.g. Web Browser (leave blank to use Command)</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="label_Custom1">
+              <property name="text">
+               <string>Command:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QLineEdit" name="editCommandLine">
+              <property name="placeholderText">
+               <string>e.g. /usr/bin/firefox, konsole, or /path/to/script.sh</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="layoutCustomButtons">
+            <item>
+             <widget class="QPushButton" name="btnNewCommand">
+              <property name="text">
+               <string>➕ New Command</string>
+              </property>
+              <property name="toolTip">
+               <string>Start creating a new custom command</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnAddCommand">
+              <property name="text">
+               <string>✔ Add Command</string>
+              </property>
+              <property name="toolTip">
+               <string>Add this command to the pack</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnSaveChanges">
+              <property name="text">
+               <string>💾 Save Changes</string>
+              </property>
+              <property name="toolTip">
+               <string>Save changes to this command</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnDeleteCommand">
+              <property name="text">
+               <string>🗑 Delete Command</string>
+              </property>
+              <property name="toolTip">
+               <string>Delete this command and reset any gestures using it</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnDiscardCommand">
+              <property name="text">
+               <string>↺ Discard</string>
+              </property>
+              <property name="toolTip">
+               <string>Discard unsaved changes to this command</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="spacerCustomButtons">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupSyntaxHelp">
+         <property name="title">
+          <string>Command Syntax &amp; Usage Guide</string>
+         </property>
+         <layout class="QVBoxLayout" name="layoutSyntaxHelp">
+          <item>
+           <widget class="QLabel" name="label_SyntaxExplanation">
+            <property name="text">
+             <string>&lt;html&gt;&lt;body&gt;
+&lt;p&gt;&lt;b&gt;How to use custom commands in gestures:&lt;/b&gt;&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;&lt;b&gt;Title Option:&lt;/b&gt; Friendly name for display. If left blank, it automatically defaults to the Command itself.&lt;/li&gt;
+  &lt;li&gt;&lt;b&gt;Activation:&lt;/b&gt; Select &lt;b&gt;Custom Command&lt;/b&gt; in any gesture dropdown in the &lt;i&gt;Touch Gestures&lt;/i&gt; tab.&lt;/li&gt;
+  &lt;li&gt;&lt;b&gt;External Programs:&lt;/b&gt; &lt;code&gt;exec:/usr/bin/konsole&lt;/code&gt; or &lt;code&gt;exec:flatpak run org.mozilla.firefox&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;b&gt;Direct Commands:&lt;/b&gt; Any shell path or executable such as &lt;code&gt;/home/user/myscript.sh&lt;/code&gt; or &lt;code&gt;konsole&lt;/code&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;b&gt;Global KDE Shortcuts:&lt;/b&gt; &lt;code&gt;shortcut:&amp;lt;component&amp;gt;:&amp;lt;action&amp;gt;&lt;/code&gt; (e.g. &lt;code&gt;shortcut:kwin:Overview&lt;/code&gt;)&lt;/li&gt;
+  &lt;li&gt;&lt;b&gt;D-Bus Calls:&lt;/b&gt; &lt;code&gt;dbus:&amp;lt;service&amp;gt;:&amp;lt;path&amp;gt;:&amp;lt;interface&amp;gt;:&amp;lt;method&amp;gt;&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;i&gt;Note: All action dropdowns in the Touch Gestures tab are also directly editable. You can type or paste any command directly into the gesture selector.&lt;/i&gt;&lt;/p&gt;
+&lt;p&gt;&lt;b&gt;Diagnostics &amp;amp; Storage:&lt;/b&gt; Custom commands are stored in &lt;code&gt;~/.config/kwin-touch-gesture-plus/commands/&lt;/code&gt;. Diagnostic activity is logged to &lt;code&gt;~/.local/state/kwin-touch-gesture-plus/diagnostics.log&lt;/code&gt; (inspect with &lt;code&gt;tail -F ~/.local/state/kwin-touch-gesture-plus/diagnostics.log&lt;/code&gt;). Sensitive command payloads are redacted for privacy.&lt;/p&gt;
+&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="spacerCustom">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabTabletMode">
+      <attribute name="title">
+       <string>Tablet Mode &amp; Sizing</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="layoutTabTablet">
+       <item>
+        <widget class="QGroupBox" name="groupHinge">
+         <property name="title">
+          <string>Hinge Sensor Sensitivity</string>
+         </property>
+         <layout class="QFormLayout" name="formHinge">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_HingeAngle">
+            <property name="text">
+             <string>Hinge Trigger Angle:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <layout class="QHBoxLayout" name="layoutHingeAngle">
+            <item>
+             <widget class="QSlider" name="kcfg_HingeAngleThreshold">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="minimum">
+               <number>170</number>
+              </property>
+              <property name="maximum">
+               <number>240</number>
+              </property>
+              <property name="value">
+               <number>185</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spin_HingeAngleThreshold">
+              <property name="minimum">
+               <number>170</number>
+              </property>
+              <property name="maximum">
+               <number>240</number>
+              </property>
+              <property name="value">
+               <number>185</number>
+              </property>
+              <property name="suffix">
+               <string>°</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_HingePoll">
+            <property name="text">
+             <string>Sensor Polling Interval:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <layout class="QHBoxLayout" name="layoutHingePoll">
+            <item>
+             <widget class="QSlider" name="kcfg_HingePollInterval">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="minimum">
+               <number>100</number>
+              </property>
+              <property name="maximum">
+               <number>1000</number>
+              </property>
+              <property name="singleStep">
+               <number>50</number>
+              </property>
+              <property name="pageStep">
+               <number>100</number>
+              </property>
+              <property name="value">
+               <number>350</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spin_HingePollInterval">
+              <property name="minimum">
+               <number>100</number>
+              </property>
+              <property name="maximum">
+               <number>1000</number>
+              </property>
+              <property name="singleStep">
+               <number>50</number>
+              </property>
+              <property name="value">
+               <number>350</number>
+              </property>
+              <property name="suffix">
+               <string> ms</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupButtonScaling">
+         <property name="title">
+          <string>Window Titlebar Buttons</string>
+         </property>
+         <layout class="QFormLayout" name="formButtons">
+          <item row="0" column="0" colspan="2">
+           <widget class="QCheckBox" name="kcfg_EnableButtonScaling">
+            <property name="text">
+             <string>Auto-enlarge Window Titlebar Buttons when folded</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_TabletBtn">
+            <property name="text">
+             <string>Tablet Mode Button Size:</string>
+            </property>
+           </widget>
+          </item>
+           <item row="1" column="1">
+           <widget class="QComboBox" name="kcfg_TabletButtonSize">
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item><property name="text"><string>Very Large</string></property></item>
+            <item><property name="text"><string>Huge</string></property></item>
+            <item><property name="text"><string>Large</string></property></item>
+            <item><property name="text"><string>Medium</string></property></item>
+            <item><property name="text"><string>Small</string></property></item>
+            <item><property name="text"><string>Tiny</string></property></item>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_LaptopBtn">
+            <property name="text">
+             <string>Laptop Mode Button Size:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QComboBox" name="kcfg_LaptopButtonSize">
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item><property name="text"><string>Medium</string></property></item>
+            <item><property name="text"><string>Small</string></property></item>
+            <item><property name="text"><string>Tiny</string></property></item>
+            <item><property name="text"><string>Large</string></property></item>
+            <item><property name="text"><string>Very Large</string></property></item>
+            <item><property name="text"><string>Huge</string></property></item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupDisplayScaling">
+         <property name="title">
+          <string>Display Scaling</string>
+         </property>
+         <layout class="QFormLayout" name="formDisplay">
+          <item row="0" column="0" colspan="2">
+           <widget class="QCheckBox" name="kcfg_EnableDisplayScaling">
+            <property name="text">
+             <string>Auto-adjust Display Scale when folded</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_TabletScale">
+            <property name="text">
+             <string>Tablet Mode Display Scale:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="kcfg_TabletScale">
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item><property name="text"><string>100%</string></property></item>
+            <item><property name="text"><string>105%</string></property></item>
+            <item><property name="text"><string>115%</string></property></item>
+            <item><property name="text"><string>120%</string></property></item>
+            <item><property name="text"><string>125%</string></property></item>
+            <item><property name="text"><string>130%</string></property></item>
+            <item><property name="text"><string>150%</string></property></item>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_LaptopScale">
+            <property name="text">
+             <string>Laptop Mode Display Scale:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QComboBox" name="kcfg_LaptopScale">
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item><property name="text"><string>100%</string></property></item>
+            <item><property name="text"><string>105%</string></property></item>
+            <item><property name="text"><string>110%</string></property></item>
+            <item><property name="text"><string>115%</string></property></item>
+            <item><property name="text"><string>120%</string></property></item>
+            <item><property name="text"><string>125%</string></property></item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabSafeZones">
+      <attribute name="title">
+       <string>Safe Zones and Keyboard</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="layoutTabSafeZones">
+       <item>
+        <widget class="QGroupBox" name="groupEdgeToggles">
+         <property name="title">
+          <string>Edge Gesture Activations</string>
+         </property>
+         <layout class="QVBoxLayout" name="layoutEdgeToggles">
+          <item>
+           <widget class="QCheckBox" name="kcfg_EnableTopEdge">
+            <property name="text">
+             <string>Enable Top Edge Swipe (Fullscreen / Overview)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="kcfg_EnableBottomEdge">
+            <property name="text">
+             <string>Enable Bottom Edge Swipes (Launcher / Dock / Tray)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="kcfg_EnableLeftEdge">
+            <property name="text">
+             <string>Enable Left Edge Swipe (Activities / Task Switcher)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="kcfg_EnableRightEdge">
+            <property name="text">
+             <string>Enable Right Edge Swipe (Tray / Notifications - uncheck to prevent scrollbar conflicts)</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupSafeZones">
+         <property name="title">
+          <string>Corner Safe Zones (App and Window Controls Pass-Through)</string>
+         </property>
+         <layout class="QFormLayout" name="formSafeZones">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_TopRightSafeWidth">
+            <property name="text">
+             <string>Top-Right Safe Width:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <layout class="QHBoxLayout" name="layoutTopRightSafeWidth">
+            <item>
+             <widget class="QSlider" name="kcfg_TopRightSafeWidth">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>300</number>
+              </property>
+              <property name="value">
+               <number>150</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spin_TopRightSafeWidth">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>300</number>
+              </property>
+              <property name="value">
+               <number>150</number>
+              </property>
+              <property name="suffix">
+               <string> px</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_TopRightSafeHeight">
+            <property name="text">
+             <string>Top-Right Safe Height:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <layout class="QHBoxLayout" name="layoutTopRightSafeHeight">
+            <item>
+             <widget class="QSlider" name="kcfg_TopRightSafeHeight">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>150</number>
+              </property>
+              <property name="value">
+               <number>60</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spin_TopRightSafeHeight">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>150</number>
+              </property>
+              <property name="value">
+               <number>60</number>
+              </property>
+              <property name="suffix">
+               <string> px</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_TopLeftSafeWidth">
+            <property name="text">
+             <string>Top-Left Safe Width:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <layout class="QHBoxLayout" name="layoutTopLeftSafeWidth">
+            <item>
+             <widget class="QSlider" name="kcfg_TopLeftSafeWidth">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>300</number>
+              </property>
+              <property name="value">
+               <number>100</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spin_TopLeftSafeWidth">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>300</number>
+              </property>
+              <property name="value">
+               <number>100</number>
+              </property>
+              <property name="suffix">
+               <string> px</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="label_TopLeftSafeHeight">
+            <property name="text">
+             <string>Top-Left Safe Height:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <layout class="QHBoxLayout" name="layoutTopLeftSafeHeight">
+            <item>
+             <widget class="QSlider" name="kcfg_TopLeftSafeHeight">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>150</number>
+              </property>
+              <property name="value">
+               <number>60</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spin_TopLeftSafeHeight">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>150</number>
+              </property>
+              <property name="value">
+               <number>60</number>
+              </property>
+              <property name="suffix">
+               <string> px</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="groupKeyboard">
+         <property name="title">
+          <string>Virtual Keyboard Integration</string>
+         </property>
+         <layout class="QFormLayout" name="formKeyboard">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_BottomGesturesWithOsk">
+            <property name="text">
+             <string>Bottom Gestures with Docked OSK:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="kcfg_BottomGesturesWithOsk">
+            <property name="kcfg_property" stdset="0">
+             <string>currentText</string>
+            </property>
+            <item>
+             <property name="text">
+              <string>Disabled</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>SplitGapOnly</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="0" colspan="2">
+           <widget class="QCheckBox" name="kcfg_HideKeyboardOnGesture">
+            <property name="text">
+             <string>Dismiss Virtual Keyboard on Successful Navigation Gesture</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>kcfg_EdgeMargin</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>spin_EdgeMargin</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>spin_EdgeMargin</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>kcfg_EdgeMargin</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>kcfg_SwipeThreshold</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>spin_SwipeThreshold</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>spin_SwipeThreshold</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>kcfg_SwipeThreshold</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>kcfg_HingeAngleThreshold</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>spin_HingeAngleThreshold</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>spin_HingeAngleThreshold</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>kcfg_HingeAngleThreshold</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>kcfg_HingePollInterval</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>spin_HingePollInterval</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>spin_HingePollInterval</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>kcfg_HingePollInterval</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>kcfg_TopRightSafeWidth</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>spin_TopRightSafeWidth</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>spin_TopRightSafeWidth</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>kcfg_TopRightSafeWidth</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>kcfg_TopRightSafeHeight</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>spin_TopRightSafeHeight</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>spin_TopRightSafeHeight</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>kcfg_TopRightSafeHeight</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>kcfg_TopLeftSafeWidth</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>spin_TopLeftSafeWidth</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>spin_TopLeftSafeWidth</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>kcfg_TopLeftSafeWidth</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>kcfg_TopLeftSafeHeight</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>spin_TopLeftSafeHeight</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+  <connection>
+   <sender>spin_TopLeftSafeHeight</sender>
+   <signal>valueChanged(int)</signal>
+   <receiver>kcfg_TopLeftSafeHeight</receiver>
+   <slot>setValue(int)</slot>
+  </connection>
+ </connections>
+</ui>

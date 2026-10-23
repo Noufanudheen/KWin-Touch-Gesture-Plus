@@ -1,0 +1,118 @@
+# Maintainer: Noufanudheen <developer@local>
+# Based on Arch Linux & CachyOS PKGBUILD for KWin
+
+pkgname=kwin
+pkgver=6.7.5
+_dirver=$(echo $pkgver | cut -d. -f1-3)
+pkgrel=3.5
+pkgdesc='An easy to use, but flexible, Wayland compositor (with KWin Touch Gesture Plus pending-touch arbitration)'
+arch=(x86_64 x86_64_v3)
+url='https://kde.org/plasma-desktop/'
+license=(LGPL-2.0-or-later)
+depends=(aurorae
+         breeze
+         glibc
+         iio-sensor-proxy
+         plasma-activities
+         kauth
+         kcmutils
+         kcolorscheme
+         kconfig
+         kcoreaddons
+         kcrash
+         kdbusaddons
+         kdeclarative
+         kdecoration
+         kglobalaccel
+         kglobalacceld
+         kguiaddons
+         ki18n
+         kidletime
+         kirigami
+         kitemmodels
+         knewstuff
+         knighttime
+         knotifications
+         kpackage
+         kquickcharts
+         kscreenlocker
+         kservice
+         ksvg
+         kwayland
+         kwidgetsaddons
+         kwindowsystem
+         kxmlgui
+         lcms2
+         libcanberra
+         libdisplay-info
+         libdrm
+         libei
+         libepoxy
+         libevdev
+         libgcc
+         libinput
+         libpipewire
+         libqaccessibilityclient-qt6
+         libstdc++
+         libxcb
+         libxcvt
+         libxkbcommon
+         mesa
+         milou
+         pipewire-session-manager
+         libplasma
+         qt6-5compat
+         qt6-base
+         qt6-declarative
+         qt6-svg
+         qt6-tools
+         systemd-libs
+         vulkan-icd-loader
+         wayland
+         xcb-util-keysyms
+         xcb-util-wm)
+makedepends=(extra-cmake-modules
+             kdoctools
+             krunner
+             python
+             vulkan-headers
+             wayland-protocols
+             xorg-xwayland)
+optdepends=('plasma-keyboard: virtual keyboard')
+groups=(plasma)
+source=(https://download.kde.org/stable/plasma/$_dirver/$pkgname-$pkgver.tar.xz{,.sig}
+        0001-screenedge-pending-touch-arbitration-v2.patch
+        0002-screenedge-preserve-incomplete-gesture.patch
+        0003-screenedge-ownership-finalization.patch
+        0004-screenedge-quarantine-recovery.patch)
+sha256sums=('6baa910b732d93c48c90f9c1cc685cc93d0b8de0cdf138c24192c045bc3a48e2'
+            'SKIP'
+            'bc09bead8a06d46ebfd52bf3dc9c440a11bc91991248adb05a51a156694a6779'
+            'f819b0d3e2edfdeb4f29b0417f2c07fa49d4e22cddb03ce8078f8e609102320a'
+            '98a58999ee266985944ab96818fc676b0b57a802f3223684a68d72b68ad98998'
+            '5db80aeccb71a483382ea930f21f2ba3fdefd761e0c80fc7dfca9bcb158ae767')
+validpgpkeys=('E0A3EB202F8E57528E13E72FD7574483BB57B18D'  # Jonathan Esk-Riddell <jr@jriddell.org>
+              '0AAC775BB6437A8D9AF7A3ACFE0784117FBCE11D'  # Bhushan Shah <bshah@kde.org>
+              'D07BD8662C56CB291B316EB2F5675605C74E02CF'  # David Edmundson <davidedmundson@kde.org>
+              '90A968ACA84537CC27B99EAF2C8DF587A6D4AAC1'  # Nicolas Fella <nicolas.fella@kde.org>
+              '1FA881591C26B276D7A5518EEAAF29B42A678C20') # Marco Martin <notmart@gmail.com>
+
+prepare() {
+  cd $pkgname-$pkgver
+  patch -Np1 -i "$srcdir/0001-screenedge-pending-touch-arbitration-v2.patch"
+  patch -Np1 -i "$srcdir/0002-screenedge-preserve-incomplete-gesture.patch"
+  patch -Np1 -i "$srcdir/0003-screenedge-ownership-finalization.patch"
+  patch -Np1 -i "$srcdir/0004-screenedge-quarantine-recovery.patch"
+}
+
+build() {
+  cmake -B build -S $pkgname-$pkgver \
+    -DCMAKE_INSTALL_LIBEXECDIR=lib \
+    -DBUILD_TESTING=OFF
+  cmake --build build
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  setcap CAP_SYS_NICE=+ep "$pkgdir"/usr/bin/kwin_wayland 2>/dev/null || true
+}

@@ -1,0 +1,485 @@
+diff --git a/autotests/integration/screenedges_test.cpp b/autotests/integration/screenedges_test.cpp
+index 99ff3e3..2163538 100644
+--- a/autotests/integration/screenedges_test.cpp
++++ b/autotests/integration/screenedges_test.cpp
+@@ -67,6 +67,8 @@ private Q_SLOTS:
+     void testUpstreamFilterSingleInvocation();
+     void testJitterRejectionAndFlickCommitment();
+     void testTargetInvalidationFailClosed();
++    void testIncompleteGesturePreservesTouches();
++    void testCandidateTimeoutHandoff();
+     void testPushBack_data();
+     void testPushBack();
+     void testObjectEdge_data();
+@@ -543,7 +545,7 @@ void ScreenEdgesTest::testJitterRejectionAndFlickCommitment()
+     // Genuine flick: move to 15px inward at t+20ms (dt = 20ms, inward = 13px >= 10px, velocity = 13/20 = 0.65 px/ms >= 0.48)
+     timestamp += 14;
+     Test::touchMotion(12, QPointF(15, 51), timestamp);
+-    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureCandidate);
+ 
+     // Release before 44px: inward is 13px < 44px
+     timestamp += 5;
+@@ -558,12 +560,12 @@ void ScreenEdgesTest::testJitterRejectionAndFlickCommitment()
+     QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
+ 
+     // Slow inward movement: move to 19px inward over 60ms (velocity = 17/60 = 0.28 px/ms < 0.48 px/ms)
+-    // But displacement = 17px >= 16px (commitment distance)
++    // But displacement = 17px >= 16px (commitment distance) -> becomes preliminary GestureCandidate
+     timestamp += 60;
+     Test::touchMotion(13, QPointF(19, 50), timestamp);
+-    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureCandidate);
+ 
+-    // Drag further past 44px activation threshold: inward = 48px >= 44px
++    // Drag further past 44px activation threshold: inward = 48px >= 44px -> commits to GestureOwned!
+     timestamp += 20;
+     Test::touchMotion(13, QPointF(50, 50), timestamp);
+     QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
+@@ -633,6 +635,188 @@ void ScreenEdgesTest::testTargetInvalidationFailClosed()
+     s->unreserveTouch(ElectricLeft, &action);
+ }
+ 
++void ScreenEdgesTest::testIncompleteGesturePreservesTouches()
++{
++    // Verifies Requirement 7 & 8:
++    // A gesture candidate moves inward beyond the early commitment threshold (16px),
++    // releases before 44px activation distance, and verifies BOTH:
++    // 1. No system gesture action fires.
++    // 2. The downstream recipient receives the full, ordered touch sequence.
++    auto s = workspace()->screenEdges();
++    auto recognizer = s->gestureRecognizer();
++
++    QAction action;
++    QSignalSpy actionSpy(&action, &QAction::triggered);
++    s->reserveTouch(ElectricLeft, &action);
++
++    // Create a real Wayland client window covering the touch region (0, 0, 300, 300)
++    std::unique_ptr<KWayland::Client::Surface> surface = Test::createSurface();
++    QVERIFY(surface);
++    std::unique_ptr<Test::XdgToplevel> shellSurface = Test::createXdgToplevelSurface(surface.get());
++    QVERIFY(shellSurface);
++    auto window = Test::renderAndWaitForShown(surface.get(), QSize(300, 300), Qt::blue);
++    QVERIFY(window);
++    window->move(QPoint(0, 0));
++    QCOMPARE(workspace()->activeWindow(), window);
++
++    struct DownstreamFilter : public InputEventFilter
++    {
++        DownstreamFilter()
++            : InputEventFilter(InputFilterOrder::Forward)
++        {
++        }
++        bool touchDown(TouchDownEvent *event) override
++        {
++            downEvents.append(*event);
++            return false;
++        }
++        bool touchMotion(TouchMotionEvent *event) override
++        {
++            motionEvents.append(*event);
++            return false;
++        }
++        bool touchUp(TouchUpEvent *event) override
++        {
++            upEvents.append(*event);
++            return false;
++        }
++        bool touchFrame() override
++        {
++            frameCount++;
++            return false;
++        }
++        QList<TouchDownEvent> downEvents;
++        QList<TouchMotionEvent> motionEvents;
++        QList<TouchUpEvent> upEvents;
++        int frameCount = 0;
++    };
++
++    DownstreamFilter filter;
++    input()->installInputEventFilter(&filter);
++
++    quint32 timestamp = 1000;
++    // Touch down near left edge on the client window
++    Test::touchDown(20, QPointF(2, 100), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++    QCOMPARE(filter.downEvents.count(), 0);
++
++    // Move inward to 20px (inward 18px > 16px early commitment threshold)
++    timestamp += 10;
++    Test::touchMotion(20, QPointF(20, 100), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureCandidate);
++    QCOMPARE(filter.motionEvents.count(), 0); // Still held in recognizer candidate buffer
++
++    // Move further inward to 30px (inward 28px, still < 44px activation threshold)
++    timestamp += 10;
++    Test::touchMotion(20, QPointF(30, 100), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureCandidate);
++    QCOMPARE(filter.motionEvents.count(), 0);
++
++    // Release before 44px activation threshold
++    timestamp += 10;
++    Test::touchUp(20, timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++
++    // Wait and verify NO system gesture action fired
++    QTest::qWait(20);
++    QCOMPARE(actionSpy.count(), 0);
++
++    // Verify downstream recipient received the complete, ordered touch sequence
++    QCOMPARE(filter.downEvents.count(), 1);
++    QCOMPARE(filter.downEvents.first().pos, QPointF(2, 100));
++    QCOMPARE(filter.downEvents.first().id, 20);
++
++    QCOMPARE(filter.motionEvents.count(), 2);
++    QCOMPARE(filter.motionEvents.at(0).pos, QPointF(20, 100));
++    QCOMPARE(filter.motionEvents.at(0).id, 20);
++    QCOMPARE(filter.motionEvents.at(1).pos, QPointF(30, 100));
++    QCOMPARE(filter.motionEvents.at(1).id, 20);
++
++    QCOMPARE(filter.upEvents.count(), 1);
++    QCOMPARE(filter.upEvents.first().id, 20);
++    QVERIFY(filter.frameCount >= 2);
++
++    input()->uninstallInputEventFilter(&filter);
++    s->unreserveTouch(ElectricLeft, &action);
++}
++
++void ScreenEdgesTest::testCandidateTimeoutHandoff()
++{
++    // Verifies Requirement 4:
++    // Candidate timeout (200ms) prevents recognizer from holding normal input indefinitely.
++    // If inward travel reaches gesture candidate state but stalls, it transitions
++    // to ApplicationOwned and flushes buffered events to the application.
++    auto s = workspace()->screenEdges();
++    auto recognizer = s->gestureRecognizer();
++
++    QAction action;
++    s->reserveTouch(ElectricLeft, &action);
++
++    struct DownstreamFilter : public InputEventFilter
++    {
++        DownstreamFilter()
++            : InputEventFilter(InputFilterOrder::Forward)
++        {
++        }
++        bool touchDown(TouchDownEvent *event) override
++        {
++            downEvents.append(*event);
++            return false;
++        }
++        bool touchMotion(TouchMotionEvent *event) override
++        {
++            motionEvents.append(*event);
++            return false;
++        }
++        bool touchUp(TouchUpEvent *event) override
++        {
++            upEvents.append(*event);
++            return false;
++        }
++        QList<TouchDownEvent> downEvents;
++        QList<TouchMotionEvent> motionEvents;
++        QList<TouchUpEvent> upEvents;
++    };
++
++    DownstreamFilter filter;
++    input()->installInputEventFilter(&filter);
++
++    quint32 timestamp = 1200;
++    Test::touchDown(21, QPointF(2, 150), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++
++    // Move to 20px inward (enters GestureCandidate)
++    timestamp += 10;
++    Test::touchMotion(21, QPointF(20, 150), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureCandidate);
++    QCOMPARE(filter.downEvents.count(), 0);
++
++    // Wait 220ms for candidate timeout (200ms)
++    QTest::qWait(220);
++
++    // Recognizer must have timed out and handed off to ApplicationOwned!
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::ApplicationOwned);
++    QCOMPARE(filter.downEvents.count(), 1);
++    QCOMPARE(filter.downEvents.first().pos, QPointF(2, 150));
++    QCOMPARE(filter.motionEvents.count(), 1);
++    QCOMPARE(filter.motionEvents.first().pos, QPointF(20, 150));
++
++    // Subsequent motions pass directly to application
++    timestamp += 20;
++    Test::touchMotion(21, QPointF(25, 150), timestamp);
++    QCOMPARE(filter.motionEvents.count(), 2);
++    QCOMPARE(filter.motionEvents.at(1).pos, QPointF(25, 150));
++
++    // Release
++    timestamp += 10;
++    Test::touchUp(21, timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++    QCOMPARE(filter.upEvents.count(), 1);
++
++    input()->uninstallInputEventFilter(&filter);
++    s->unreserveTouch(ElectricLeft, &action);
++}
++
+ void ScreenEdgesTest::testPushBack_data()
+ {
+     QTest::addColumn<KWin::ElectricBorder>("border");
+diff --git a/src/screenedgegestures.cpp b/src/screenedgegestures.cpp
+index 4553b2a..f05e1dc 100644
+--- a/src/screenedgegestures.cpp
++++ b/src/screenedgegestures.cpp
+@@ -81,7 +81,8 @@ void ScreenEdgeGestureRecognizer::addGesture(ScreenEdgeGesture *gesture)
+ void ScreenEdgeGestureRecognizer::removeGesture(ScreenEdgeGesture *gesture)
+ {
+     if (gesture == m_currentGesture) {
+-        if (m_state == EdgeTouchState::Pending) {
++        if (m_state == EdgeTouchState::Pending || m_state == EdgeTouchState::GestureCandidate) {
++            Q_EMIT gesture->cancelled();
+             flushPendingToApplication();
+         } else if (m_state == EdgeTouchState::GestureOwned) {
+             Q_EMIT gesture->cancelled();
+@@ -136,6 +137,14 @@ void ScreenEdgeGestureRecognizer::handlePendingTimeout()
+ {
+     if (m_state == EdgeTouchState::Pending) {
+         flushPendingToApplication();
++    } else if (m_state == EdgeTouchState::GestureCandidate) {
++        // Candidate exceeded candidate timeout without completing the activation distance:
++        // Treat as a slow drag in the application, cancel preliminary gesture, and flush to application.
++        if (m_currentGesture) {
++            Q_EMIT m_currentGesture->cancelled();
++            m_currentGesture = nullptr;
++        }
++        flushPendingToApplication();
+     }
+ }
+ 
+@@ -253,7 +262,7 @@ void ScreenEdgeGestureRecognizer::replayPendingQueue()
+ 
+ void ScreenEdgeGestureRecognizer::flushPendingToApplication()
+ {
+-    if (m_state != EdgeTouchState::Pending) {
++    if (m_state != EdgeTouchState::Pending && m_state != EdgeTouchState::GestureCandidate) {
+         return;
+     }
+     m_pendingTimer->stop();
+@@ -271,8 +280,13 @@ bool ScreenEdgeGestureRecognizer::touchDown(uint32_t id, const QPointF &pos, std
+         return false;
+     }
+ 
+-    if (m_state == EdgeTouchState::Pending) {
+-        // Multi-touch contact detected while first touch was pending.
++    if (m_state == EdgeTouchState::Pending || m_state == EdgeTouchState::GestureCandidate) {
++        // Multi-touch contact detected while first touch was pending or gesture candidate.
++        // If candidate, cancel preliminary gesture before flushing.
++        if (m_currentGesture) {
++            Q_EMIT m_currentGesture->cancelled();
++            m_currentGesture = nullptr;
++        }
+         // Flush all buffered events for the first contact to application before second contact is processed.
+         flushPendingToApplication();
+         return false;
+@@ -338,7 +352,7 @@ bool ScreenEdgeGestureRecognizer::touchMotion(uint32_t id, const QPointF &pos, s
+     }
+ 
+     if (!m_touchId || m_touchId != id || !m_currentGesture) {
+-        return (m_state == EdgeTouchState::Pending || m_state == EdgeTouchState::GestureOwned);
++        return (m_state == EdgeTouchState::Pending || m_state == EdgeTouchState::GestureCandidate || m_state == EdgeTouchState::GestureOwned);
+     }
+ 
+     const double inward = inwardDisplacement(pos);
+@@ -348,34 +362,45 @@ bool ScreenEdgeGestureRecognizer::touchMotion(uint32_t id, const QPointF &pos, s
+         std::chrono::duration<double, std::milli> dt = time - m_startTime;
+         const double velocity = (dt.count() > 0) ? (inward / dt.count()) : 0.0;
+ 
+-        // Intent classification:
+-        // Must require sufficient directional travel:
++        // Parallel movement (edge scroll or drag):
++        // Parallel travel >= 10px and inward within slop (<= 5px)
++        if (parallel >= s_scrollMinParallelDisplacement && inward <= s_scrollMaxInwardDisplacement) {
++            m_pendingQueue.push_back({
++                .type = PendingEventType::Motion,
++                .id = id,
++                .pos = pos,
++                .time = time,
++            });
++            flushPendingToApplication();
++            return true;
++        }
++
++        // Preliminary gesture intent classification:
+         // EITHER displacement >= s_gestureCommitmentDisplacement (16px)
+         // OR directional travel >= s_gestureMinFlickTravel (10px) AND velocity >= s_gestureMinInwardVelocity (0.48 px/ms)
+-        const bool isDistanceCommitment = (inward >= s_gestureCommitmentDisplacement);
+-        const bool isFlickCommitment = (inward >= s_gestureMinFlickTravel && velocity >= s_gestureMinInwardVelocity);
++        const bool isDistanceIntent = (inward >= s_gestureCommitmentDisplacement);
++        const bool isFlickIntent = (inward >= s_gestureMinFlickTravel && velocity >= s_gestureMinInwardVelocity);
+ 
+-        if (isDistanceCommitment || isFlickCommitment) {
+-            m_pendingTimer->stop();
+-            m_pendingQueue.clear();
+-            m_state = EdgeTouchState::GestureOwned;
++        if (isDistanceIntent || isFlickIntent) {
++            m_state = EdgeTouchState::GestureCandidate;
++            m_pendingTimer->start(s_candidateTimeout);
+             m_currentDistance = std::max(0.0, inward);
+             Q_EMIT m_currentGesture->started();
+             const QPointF delta = pos - m_startPosition;
+             Q_EMIT m_currentGesture->progress(delta, std::clamp(m_currentDistance / s_activationDistance, 0.0, 1.0));
+-            return true;
+-        }
+ 
+-        // Parallel movement (edge scroll or drag):
+-        // Parallel travel >= 10px and inward within slop (<= 5px)
+-        if (parallel >= s_scrollMinParallelDisplacement && inward <= s_scrollMaxInwardDisplacement) {
+             m_pendingQueue.push_back({
+                 .type = PendingEventType::Motion,
+                 .id = id,
+                 .pos = pos,
+                 .time = time,
+             });
+-            flushPendingToApplication();
++
++            if (m_currentDistance >= s_activationDistance) {
++                m_pendingTimer->stop();
++                m_pendingQueue.clear();
++                m_state = EdgeTouchState::GestureOwned;
++            }
+             return true;
+         }
+ 
+@@ -390,6 +415,27 @@ bool ScreenEdgeGestureRecognizer::touchMotion(uint32_t id, const QPointF &pos, s
+         return true;
+     }
+ 
++    if (m_state == EdgeTouchState::GestureCandidate) {
++        m_currentDistance = std::max(0.0, inward);
++        const QPointF delta = pos - m_startPosition;
++        Q_EMIT m_currentGesture->progress(delta, std::clamp(m_currentDistance / s_activationDistance, 0.0, 1.0));
++
++        m_pendingQueue.push_back({
++            .type = PendingEventType::Motion,
++            .id = id,
++            .pos = pos,
++            .time = time,
++        });
++
++        // If inward reaches or exceeds activation distance, the gesture commits irreversibly!
++        if (m_currentDistance >= s_activationDistance) {
++            m_pendingTimer->stop();
++            m_pendingQueue.clear();
++            m_state = EdgeTouchState::GestureOwned;
++        }
++        return true;
++    }
++
+     if (m_state == EdgeTouchState::GestureOwned) {
+         m_currentDistance = std::max(0.0, inward);
+         const QPointF delta = pos - m_startPosition;
+@@ -423,6 +469,37 @@ bool ScreenEdgeGestureRecognizer::touchUp(uint32_t id, std::chrono::microseconds
+         return true;
+     }
+ 
++    if (m_state == EdgeTouchState::GestureCandidate && m_touchId == id) {
++        m_pendingTimer->stop();
++
++        if (m_currentDistance >= s_activationDistance) {
++            if (m_currentGesture) {
++                Q_EMIT m_currentGesture->triggered();
++                m_currentGesture = nullptr;
++            }
++            m_pendingQueue.clear();
++        } else {
++            if (m_currentGesture) {
++                Q_EMIT m_currentGesture->cancelled();
++                m_currentGesture = nullptr;
++            }
++
++            m_pendingQueue.push_back({
++                .type = PendingEventType::Up,
++                .id = id,
++                .pos = {},
++                .time = time,
++            });
++
++            m_skipNextFrame = true;
++            replayPendingQueue();
++        }
++
++        m_state = EdgeTouchState::Idle;
++        m_touchId.reset();
++        return true;
++    }
++
+     if (m_state == EdgeTouchState::ApplicationOwned) {
+         if (m_touchPoints.empty()) {
+             m_state = EdgeTouchState::Idle;
+@@ -438,17 +515,21 @@ bool ScreenEdgeGestureRecognizer::touchUp(uint32_t id, std::chrono::microseconds
+         return true;
+     }
+ 
+-    if (m_currentGesture) {
+-        if (m_currentDistance >= s_activationDistance) {
+-            Q_EMIT m_currentGesture->triggered();
+-        } else {
+-            Q_EMIT m_currentGesture->cancelled();
++    if (m_state == EdgeTouchState::GestureOwned) {
++        if (m_currentGesture) {
++            if (m_currentDistance >= s_activationDistance) {
++                Q_EMIT m_currentGesture->triggered();
++            } else {
++                Q_EMIT m_currentGesture->cancelled();
++            }
++            m_currentGesture = nullptr;
+         }
+-        m_currentGesture = nullptr;
++        m_state = EdgeTouchState::Idle;
++        m_touchId.reset();
++        return true;
+     }
+-    m_state = EdgeTouchState::Idle;
+-    m_touchId.reset();
+-    return true;
++
++    return false;
+ }
+ 
+ void ScreenEdgeGestureRecognizer::touchCancel()
+@@ -458,7 +539,7 @@ void ScreenEdgeGestureRecognizer::touchCancel()
+     m_pendingTimer->stop();
+     m_skipNextFrame = false;
+     m_pendingQueue.clear();
+-    if (m_state == EdgeTouchState::GestureOwned && m_currentGesture) {
++    if ((m_state == EdgeTouchState::GestureOwned || m_state == EdgeTouchState::GestureCandidate) && m_currentGesture) {
+         Q_EMIT m_currentGesture->cancelled();
+     }
+     m_currentGesture = nullptr;
+@@ -472,7 +553,7 @@ bool ScreenEdgeGestureRecognizer::touchFrame()
+         return true;
+     }
+ 
+-    if (m_state == EdgeTouchState::Pending) {
++    if (m_state == EdgeTouchState::Pending || m_state == EdgeTouchState::GestureCandidate) {
+         m_pendingQueue.push_back({
+             .type = PendingEventType::Frame,
+             .id = 0,
+diff --git a/src/screenedgegestures.h b/src/screenedgegestures.h
+index 833f48a..903116c 100644
+--- a/src/screenedgegestures.h
++++ b/src/screenedgegestures.h
+@@ -39,6 +39,7 @@ struct TouchUpEvent;
+ enum class EdgeTouchState {
+     Idle,
+     Pending,
++    GestureCandidate,
+     GestureOwned,
+     ApplicationOwned,
+ };
+@@ -97,6 +98,7 @@ public:
+     static constexpr double s_scrollMinParallelDisplacement = 10.0; // Parallel travel required to classify as scroll/drag
+     static constexpr double s_scrollMaxInwardDisplacement = 5.0; // Max inward displacement to remain classified as parallel
+     static constexpr std::chrono::milliseconds s_pendingTimeout = std::chrono::milliseconds(50);
++    static constexpr std::chrono::milliseconds s_candidateTimeout = std::chrono::milliseconds(200);
+ 
+     using ReplayDownFunc = std::function<void(const TouchDownEvent &)>;
+     using ReplayMotionFunc = std::function<void(const TouchMotionEvent &)>;

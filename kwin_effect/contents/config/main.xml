@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                          http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
+    <kcfgfile name=""/>
+    <group name="">
+        <entry name="EdgeMargin" type="Int">
+            <default>25</default>
+        </entry>
+        <entry name="SwipeThreshold" type="Int">
+            <default>45</default>
+        </entry>
+        <entry name="HingeAngleThreshold" type="Int">
+            <default>185</default>
+        </entry>
+        <entry name="HingePollInterval" type="Int">
+            <default>350</default>
+        </entry>
+        <entry name="BottomLeftAction" type="String">
+            <default>Application Launcher</default>
+        </entry>
+        <entry name="BottomCenterAction" type="String">
+            <default>Toggle Taskbar / Dock</default>
+        </entry>
+        <entry name="BottomRightAction" type="String">
+            <default>System Tray Popup Menu</default>
+        </entry>
+        <entry name="TopAction" type="String">
+            <default>Toggle Fullscreen / Expose</default>
+        </entry>
+        <entry name="RightAction" type="String">
+            <default>Notifications Panel</default>
+        </entry>
+        <entry name="LeftAction" type="String">
+            <default>Activities / Task Switcher</default>
+        </entry>
+        <entry name="EnableButtonScaling" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="TabletButtonSize" type="String">
+            <default>Very Large</default>
+        </entry>
+        <entry name="LaptopButtonSize" type="String">
+            <default>Medium</default>
+        </entry>
+        <entry name="EnableDisplayScaling" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="TabletScale" type="String">
+            <default>100%</default>
+        </entry>
+        <entry name="LaptopScale" type="String">
+            <default>100%</default>
+        </entry>
+        <entry name="EnableTopEdge" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="EnableBottomEdge" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="EnableLeftEdge" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="EnableRightEdge" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="TopRightSafeWidth" type="Int">
+            <default>150</default>
+        </entry>
+        <entry name="TopRightSafeHeight" type="Int">
+            <default>60</default>
+        </entry>
+        <entry name="TopLeftSafeWidth" type="Int">
+            <default>100</default>
+        </entry>
+        <entry name="TopLeftSafeHeight" type="Int">
+            <default>60</default>
+        </entry>
+        <entry name="BottomGesturesWithOsk" type="String">
+            <default>Disabled</default>
+        </entry>
+        <entry name="HideKeyboardOnGesture" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="CustomCommandTitle" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommandTitle1" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommandTitle2" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommandTitle3" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommandTitle4" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommandTitle5" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommand1" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommand2" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommand3" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommand4" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommand5" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommandTitle6" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommand6" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommandsJson" type="String">
+            <default></default>
+        </entry>
+        <entry name="CustomCommandsStorePath" type="String">
+            <default></default>
+        </entry>
+        <entry name="DiagnosticsEnabled" type="Bool">
+            <default>true</default>
+        </entry>
+    </group>
+</kcfg>
+

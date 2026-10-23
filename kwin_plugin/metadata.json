@@ -1,0 +1,7 @@
+{
+    "KPlugin": {
+        "EnabledByDefault": true,
+        "Name": "KWin Touch Gesture Plus",
+        "Description": "Extensible Multi-Zone Touch Edge Gestures, Pending-Touch Arbitration, and Tablet Mode Management for KDE Plasma 6"
+    }
+}

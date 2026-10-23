@@ -1,0 +1,345 @@
+diff --git a/autotests/integration/screenedges_test.cpp b/autotests/integration/screenedges_test.cpp
+index 0321d21..17cafa6 100644
+--- a/autotests/integration/screenedges_test.cpp
++++ b/autotests/integration/screenedges_test.cpp
+@@ -75,6 +75,8 @@ private Q_SLOTS:
+     void testTargetDestructionDuringPendingTimeout();
+     void testTargetDestructionDuringCandidateTimeout();
+     void testMultiTouchDuringCommittedGesture();
++    void testQuarantineMixedContactRecovery();
++    void testDirectGestureCommitmentEmitsStartedBeforeProgress();
+     void testPushBack_data();
+     void testPushBack();
+     void testObjectEdge_data();
+@@ -1269,6 +1271,218 @@ void ScreenEdgesTest::testMultiTouchDuringCommittedGesture()
+     s->unreserveTouch(ElectricLeft, &action);
+ }
+ 
++void ScreenEdgesTest::testQuarantineMixedContactRecovery()
++{
++    // Fix A: Quarantined state recovery with mixed independent contacts.
++    // 1. Edge contact (60) enters Pending.
++    // 2. Target window destroyed -> contact 60 dropped fail-closed and quarantined.
++    // 3. Independent contact (61) touches down on a second window and is passed through.
++    // 4. Contact 60 lifts FIRST -> quarantined contact consumed.
++    // 5. Contact 61 lifts SECOND -> independent contact forwarded to application.
++    // 6. Assert recognizer returns to Idle, no touch event orphaned, and subsequent edge swipe works.
++    auto s = workspace()->screenEdges();
++    auto recognizer = s->gestureRecognizer();
++
++    QAction action;
++    QSignalSpy actionSpy(&action, &QAction::triggered);
++    s->reserveTouch(ElectricLeft, &action);
++
++    std::unique_ptr<KWayland::Client::Surface> surface1 = Test::createSurface();
++    QVERIFY(surface1);
++    std::unique_ptr<Test::XdgToplevel> shellSurface1 = Test::createXdgToplevelSurface(surface1.get());
++    QVERIFY(shellSurface1);
++    auto window1 = Test::renderAndWaitForShown(surface1.get(), QSize(300, 300), Qt::blue);
++    QVERIFY(window1);
++    window1->move(QPoint(0, 0));
++
++    std::unique_ptr<KWayland::Client::Surface> surface2 = Test::createSurface();
++    QVERIFY(surface2);
++    std::unique_ptr<Test::XdgToplevel> shellSurface2 = Test::createXdgToplevelSurface(surface2.get());
++    QVERIFY(shellSurface2);
++    auto window2 = Test::renderAndWaitForShown(surface2.get(), QSize(300, 300), Qt::red);
++    QVERIFY(window2);
++    window2->move(QPoint(400, 400));
++
++    struct DownstreamFilter : public InputEventFilter
++    {
++        DownstreamFilter()
++            : InputEventFilter(InputFilterOrder::Forward)
++        {
++        }
++        bool touchDown(TouchDownEvent *event) override
++        {
++            downEvents.append(*event);
++            return false;
++        }
++        bool touchMotion(TouchMotionEvent *event) override
++        {
++            motionEvents.append(*event);
++            return false;
++        }
++        bool touchUp(TouchUpEvent *event) override
++        {
++            upEvents.append(*event);
++            return false;
++        }
++        QList<TouchDownEvent> downEvents;
++        QList<TouchMotionEvent> motionEvents;
++        QList<TouchUpEvent> upEvents;
++    };
++
++    DownstreamFilter filter;
++    input()->installInputEventFilter(&filter);
++
++    quint32 timestamp = 7000;
++    // 1. Touch down near left edge on window1
++    Test::touchDown(60, QPointF(2, 50), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++    QCOMPARE(filter.downEvents.count(), 0);
++
++    // 2. Destroy window1 while contact 60 is pending
++    shellSurface1.reset();
++    surface1.reset();
++    Test::flushWaylandConnection();
++
++    // Pending timeout expires (50ms)
++    QTest::qWait(70);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Quarantined);
++    QVERIFY(std::ranges::find(recognizer->quarantinedTouchIds(), 60) != recognizer->quarantinedTouchIds().end());
++    QCOMPARE(filter.downEvents.count(), 0);
++
++    // 3. Independent contact arrives on window2 while 60 is quarantined
++    timestamp += 20;
++    Test::touchDown(61, QPointF(450, 450), timestamp);
++    // Contact 61 is passed through to the application
++    QCOMPARE(filter.downEvents.count(), 1);
++    QCOMPARE(filter.downEvents.first().id, 61);
++
++    // Move contact 61
++    timestamp += 20;
++    Test::touchMotion(61, QPointF(460, 460), timestamp);
++    QCOMPARE(filter.motionEvents.count(), 1);
++    QCOMPARE(filter.motionEvents.first().id, 61);
++
++    // 4. Quarantined contact 60 lifts FIRST
++    timestamp += 20;
++    Test::touchUp(60, timestamp);
++    // Quarantined contact 60 release is consumed
++    QCOMPARE(filter.upEvents.count(), 0);
++    // All quarantined contacts have ended; recognizer resets state out of Quarantined
++    QVERIFY(recognizer->quarantinedTouchIds().empty());
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++
++    // 5. Independent application contact 61 lifts SECOND
++    timestamp += 20;
++    Test::touchUp(61, timestamp);
++    // Forwarded to application
++    QCOMPARE(filter.upEvents.count(), 1);
++    QCOMPARE(filter.upEvents.first().id, 61);
++
++    // Final state is Idle and clean
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++    QVERIFY(recognizer->quarantinedTouchIds().empty());
++    QCOMPARE(actionSpy.count(), 0);
++
++    // 6. Assert subsequent fresh edge swipe works cleanly
++    timestamp += 50;
++    Test::touchDown(62, QPointF(2, 50), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++
++    timestamp += 20;
++    Test::touchMotion(62, QPointF(55, 50), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QCOMPARE(recognizer->isGestureCommitted(), true);
++
++    timestamp += 20;
++    Test::touchUp(62, timestamp);
++    QTest::qWait(20);
++    QCOMPARE(actionSpy.count(), 1);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++
++    input()->uninstallInputEventFilter(&filter);
++    s->unreserveTouch(ElectricLeft, &action);
++}
++
++void ScreenEdgesTest::testDirectGestureCommitmentEmitsStartedBeforeProgress()
++{
++    // Fix B: Emit gesture start for direct commitment.
++    // When a gesture crosses 44px on its first qualifying movement directly from Pending,
++    // verify start, progress, and action signals occur in the correct order,
++    // and the action fires exactly once.
++    auto s = workspace()->screenEdges();
++    auto recognizer = s->gestureRecognizer();
++
++    QAction action;
++    QSignalSpy actionSpy(&action, &QAction::triggered);
++    s->reserveTouch(ElectricLeft, &action);
++
++    // Find the gesture for the reserved edge
++    QVERIFY(!recognizer->gestures().empty());
++    ScreenEdgeGesture *gesture = recognizer->gestures().front();
++    QVERIFY(gesture);
++
++    QStringList signalOrder;
++    connect(gesture, &ScreenEdgeGesture::started, this, [&signalOrder]() {
++        signalOrder.append(QStringLiteral("started"));
++    });
++    connect(gesture, &ScreenEdgeGesture::progress, this, [&signalOrder](const QPointF &, qreal) {
++        signalOrder.append(QStringLiteral("progress"));
++    });
++    connect(&action, &QAction::triggered, this, [&signalOrder]() {
++        signalOrder.append(QStringLiteral("triggered"));
++    });
++
++    QSignalSpy startedSpy(gesture, &ScreenEdgeGesture::started);
++    QSignalSpy progressSpy(gesture, &ScreenEdgeGesture::progress);
++
++    quint32 timestamp = 8000;
++    // 1. Touch down in edge zone
++    Test::touchDown(70, QPointF(2, 100), timestamp);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Pending);
++    QCOMPARE(startedSpy.count(), 0);
++    QCOMPARE(progressSpy.count(), 0);
++
++    // 2. First motion directly crosses activation distance (inward = 48px >= 44px)
++    timestamp += 20;
++    Test::touchMotion(70, QPointF(50, 100), timestamp);
++
++    // Recognizer committed directly to GestureOwned
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QCOMPARE(recognizer->isGestureCommitted(), true);
++
++    // Verify started and progress signals fired
++    QCOMPARE(startedSpy.count(), 1);
++    QVERIFY(progressSpy.count() >= 1);
++
++    // Verify signal order: started MUST precede progress!
++    QVERIFY(signalOrder.count() >= 2);
++    QCOMPARE(signalOrder.at(0), QStringLiteral("started"));
++    QCOMPARE(signalOrder.at(1), QStringLiteral("progress"));
++
++    // 3. Subsequent retreat motion back toward edge
++    timestamp += 20;
++    Test::touchMotion(70, QPointF(20, 100), timestamp);
++    // Recognizer remains GestureOwned; does NOT emit started again!
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::GestureOwned);
++    QCOMPARE(recognizer->isGestureCommitted(), true);
++    QCOMPARE(startedSpy.count(), 1);
++
++    // 4. Release contact
++    timestamp += 20;
++    Test::touchUp(70, timestamp);
++    QTest::qWait(20);
++
++    // Action fired exactly once
++    QCOMPARE(actionSpy.count(), 1);
++    QCOMPARE(recognizer->touchState(), EdgeTouchState::Idle);
++    QCOMPARE(recognizer->isGestureCommitted(), false);
++
++    // Verify final signal order ends with triggered
++    QCOMPARE(signalOrder.last(), QStringLiteral("triggered"));
++
++    s->unreserveTouch(ElectricLeft, &action);
++}
++
+ void ScreenEdgesTest::testPushBack_data()
+ {
+     QTest::addColumn<KWin::ElectricBorder>("border");
+diff --git a/src/screenedgegestures.cpp b/src/screenedgegestures.cpp
+index d63ac65..13deffe 100644
+--- a/src/screenedgegestures.cpp
++++ b/src/screenedgegestures.cpp
+@@ -324,6 +324,7 @@ bool ScreenEdgeGestureRecognizer::touchDown(uint32_t id, const QPointF &pos, std
+         // Quarantined contacts are tracked in m_quarantinedTouchIds.
+         // A new independent contact touching down while previous contact is quarantined
+         // should be routed normally downstream to application.
++        m_forwardNextFrame = true;
+         return false;
+     }
+ 
+@@ -405,6 +406,7 @@ bool ScreenEdgeGestureRecognizer::touchMotion(uint32_t id, const QPointF &pos, s
+ 
+     if (m_state == EdgeTouchState::Quarantined) {
+         // Independent contacts not in m_quarantinedTouchIds pass through
++        m_forwardNextFrame = true;
+         return false;
+     }
+ 
+@@ -431,6 +433,9 @@ bool ScreenEdgeGestureRecognizer::touchMotion(uint32_t id, const QPointF &pos, s
+         m_gestureCommitted = true;
+         m_pendingTimer->stop();
+         m_pendingQueue.clear();
++        if (m_state == EdgeTouchState::Pending && m_currentGesture) {
++            Q_EMIT m_currentGesture->started();
++        }
+         m_state = EdgeTouchState::GestureOwned;
+     }
+ 
+@@ -527,15 +532,23 @@ bool ScreenEdgeGestureRecognizer::touchUp(uint32_t id, std::chrono::microseconds
+ {
+     std::erase(m_touchPoints, id);
+ 
+-    // Fix 2: Check quarantined contacts:
++    // Check quarantined contacts:
+     if (std::erase(m_quarantinedTouchIds, id) > 0) {
+-        if (m_quarantinedTouchIds.empty() && m_touchPoints.empty()) {
++        if (m_quarantinedTouchIds.empty()) {
+             m_state = EdgeTouchState::Idle;
++            if (m_touchPoints.empty() && !m_forwardNextFrame) {
++                m_skipNextFrame = true;
++            }
+         }
+         return true;
+     }
+ 
+     if (m_state == EdgeTouchState::Quarantined) {
++        m_forwardNextFrame = true;
++        if (m_quarantinedTouchIds.empty() || m_touchPoints.empty()) {
++            m_quarantinedTouchIds.clear();
++            m_state = EdgeTouchState::Idle;
++        }
+         return false;
+     }
+ 
+@@ -655,6 +668,7 @@ void ScreenEdgeGestureRecognizer::touchCancel()
+     m_gestureCommitted = false;
+     m_pendingTimer->stop();
+     m_skipNextFrame = false;
++    m_forwardNextFrame = false;
+     m_pendingQueue.clear();
+     m_initialTargetWindow = nullptr;
+     m_initialTargetDecoration = nullptr;
+@@ -673,13 +687,15 @@ bool ScreenEdgeGestureRecognizer::touchFrame()
+         return true;
+     }
+ 
+-    if (m_state == EdgeTouchState::Quarantined) {
+-        if (m_quarantinedTouchIds.size() >= m_touchPoints.size()) {
+-            return true;
+-        }
++    if (m_forwardNextFrame) {
++        m_forwardNextFrame = false;
+         return false;
+     }
+ 
++    if (m_state == EdgeTouchState::Quarantined) {
++        return true;
++    }
++
+     if (m_state == EdgeTouchState::Pending || m_state == EdgeTouchState::GestureCandidate) {
+         m_pendingQueue.push_back({
+             .type = PendingEventType::Frame,
+diff --git a/src/screenedgegestures.h b/src/screenedgegestures.h
+index 2ead66b..bb689b3 100644
+--- a/src/screenedgegestures.h
++++ b/src/screenedgegestures.h
+@@ -145,6 +145,16 @@ public:
+         return m_pendingQueue;
+     }
+ 
++    const std::vector<ScreenEdgeGesture *> &gestures() const
++    {
++        return m_gestures;
++    }
++
++    ScreenEdgeGesture *currentGesture() const
++    {
++        return m_currentGesture;
++    }
++
+ private Q_SLOTS:
+     void handlePendingTimeout();
+ 
+@@ -173,6 +183,7 @@ private:
+     bool m_initialHadWindow = false;
+     QTimer *m_pendingTimer = nullptr;
+     bool m_skipNextFrame = false;
++    bool m_forwardNextFrame = false;
+ 
+     ReplayDownFunc m_replayTouchDown;
+     ReplayMotionFunc m_replayTouchMotion;
