@@ -32,10 +32,10 @@ In standard KDE Plasma 6 Wayland, registering touch edge gestures causes KWin's 
 | ![Touchscreen Gestures](screenshots/01_config_ui_gestures.png) | ![Tablet Mode Scaling](screenshots/02_config_ui_tablet_mode.png) |
 | *Tab 1: Configurable pull thresholds, OSK policies & edge triggers* | *Tab 2: 360° hinge sensor monitoring & automatic button scaling* |
 
-| Corner Safe Zones | Live Desktop & Multi-Zone Gestures |
-| :---: | :---: |
+| Corner Safe Zones |
+| :---: |
 | ![Corner Safe Zones](screenshots/03_config_ui_safe_zones.png)
-| *Tab 3: Top-left and top-right exclusion zones for tabs & buttons* | *HP Elite Dragonfly G1 running KWin 6.7.5 in live tablet mode* |
+| *Tab 3: Top-left and top-right exclusion zones for tabs & buttons* |
 
 ---
 
